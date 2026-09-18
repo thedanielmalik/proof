@@ -628,7 +628,7 @@ function Onboarding({ onExit, user, onPublished }) {
       let loadedSuccessfully = false;
       try {
         const [profileResult, skillsResult, experiencesResult, educationResult, workResult] = await Promise.all([
-          supabase.from("profiles").select("name,location,headline,role_summary,bio,intent,video_url,video_name").eq("id", user.id).maybeSingle(),
+          supabase.from("profiles").select("name,location,headline,role_summary,bio,intent,video_url,video_name,published,updated_at").eq("id", user.id).maybeSingle(),
           supabase.from("profile_skills").select("skill,sort_order").eq("profile_id", user.id).order("sort_order"),
           supabase.from("experiences").select("*").eq("profile_id", user.id).order("sort_order"),
           supabase.from("education").select("*").eq("profile_id", user.id).limit(1).maybeSingle(),
@@ -680,18 +680,32 @@ function Onboarding({ onExit, user, onPublished }) {
 
         const saved = draftStorageKey ? window.localStorage.getItem(draftStorageKey) : null;
         let localDraft = {};
+        let localDraftSavedAt = 0;
         if (saved) {
-          try { localDraft = JSON.parse(saved) || {}; } catch { /* Ignore malformed local draft. */ }
+          try {
+            const parsed = JSON.parse(saved) || {};
+            if (parsed && parsed.profile && typeof parsed.profile === "object") {
+              localDraft = parsed.profile;
+              localDraftSavedAt = Number(parsed.savedAt) || 0;
+            } else if (!dbProfile.published) {
+              localDraft = parsed;
+            }
+          } catch {
+            // Ignore malformed draft.
+          }
         }
+
+        const dbUpdatedAt = dbProfile.updated_at ? new Date(dbProfile.updated_at).getTime() : 0;
+        const shouldUseLocalDraft = !dbProfile.published || (localDraftSavedAt > 0 && localDraftSavedAt > dbUpdatedAt);
 
         setProfile((current) => ({
           ...current,
           ...dbDraft,
-          ...localDraft,
-          experience: localDraft.experience || dbDraft.experience || current.experience,
-          education: localDraft.education || dbDraft.education || current.education,
-          work: localDraft.work || dbDraft.work || current.work,
-          skills: localDraft.skills || dbDraft.skills || current.skills,
+          ...(shouldUseLocalDraft ? localDraft : {}),
+          experience: shouldUseLocalDraft && localDraft.experience ? localDraft.experience : (dbDraft.experience || current.experience),
+          education: shouldUseLocalDraft && localDraft.education ? localDraft.education : (dbDraft.education || current.education),
+          work: shouldUseLocalDraft && localDraft.work ? localDraft.work : (dbDraft.work || current.work),
+          skills: shouldUseLocalDraft && localDraft.skills ? localDraft.skills : (dbDraft.skills || current.skills),
         }));
         window.localStorage.removeItem("proof-draft");
         loadedSuccessfully = true;
@@ -710,7 +724,7 @@ function Onboarding({ onExit, user, onPublished }) {
   useEffect(() => {
     if (!draftStorageKey || !hydrated) return undefined;
     const timer = window.setTimeout(() => {
-      window.localStorage.setItem(draftStorageKey, JSON.stringify(profile));
+      window.localStorage.setItem(draftStorageKey, JSON.stringify({ version: 1, savedAt: Date.now(), profile }));
     }, 250);
     return () => window.clearTimeout(timer);
   }, [profile, draftStorageKey, hydrated]);
@@ -2989,11 +3003,12 @@ function PublicProfile({ slug, user, userRole, onBack }) {
       <header className="public-nav">
         <a className="brand" href="#" onClick={(e) => { e.preventDefault(); onBack(); }}>PROOF<span>.</span></a>
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          {user?.id === profile?.id && userRole === "admin" ? (
-            <Button className="button--outline" onClick={() => navigate("/admin")}>Command center</Button>
-          ) : user?.id === profile?.id ? (
-            <Button className="button--outline" onClick={() => navigate("/build")}>Edit my Proof</Button>
-          ) : null}
+          {user?.id === profile?.id && (
+            <>
+              <Button className="button--outline" onClick={() => navigate("/build")}>Edit my Proof</Button>
+              {userRole === "admin" && <Button className="button--outline" onClick={() => navigate("/admin")}>Command center</Button>}
+            </>
+          )}
           <Button className="button--dark" onClick={share}>Share this Proof <ArrowUpRight size={16} /></Button>
         </div>
       </header>
