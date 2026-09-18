@@ -154,7 +154,7 @@ function LandingPage({ onStart, onHire, onSignIn, user, userRole }) {
             <p className="hero__lead">Your CV tells employers where you've been. Your Proof shows them what you can do.</p>
             <div className="hero__buttons">
               <Button className="button--lime button--large" onClick={onStart}>
-                {userRole === "employer" ? "Open employer dashboard" : userRole === "admin" ? "Open command center" : user ? "Open my Proof" : "Build my Proof"} <ArrowUpRight size={18} />
+                {userRole === "employer" ? "Open employer dashboard" : userRole === "admin" ? "Open command center" : user ? "Edit my Proof" : "Build my Proof"} <ArrowUpRight size={18} />
               </Button>
               <Button className="button--outline button--large" onClick={onHire}>I'm hiring talent</Button>
             </div>
@@ -2491,6 +2491,21 @@ function EmployerJobForm({ user, onBack }) {
       return;
     }
 
+    const salaryMin = job.salaryMin === "" ? null : Number(job.salaryMin);
+    const salaryMax = job.salaryMax === "" ? null : Number(job.salaryMax);
+    if (salaryMin != null && Number.isNaN(salaryMin)) {
+      setError("Minimum salary must be a valid number.");
+      return;
+    }
+    if (salaryMax != null && Number.isNaN(salaryMax)) {
+      setError("Maximum salary must be a valid number.");
+      return;
+    }
+    if (salaryMin != null && salaryMax != null && salaryMax < salaryMin) {
+      setError("Maximum salary cannot be lower than minimum salary.");
+      return;
+    }
+
     setSaving(true);
     setSavedAs("");
     setError("");
@@ -2503,8 +2518,8 @@ function EmployerJobForm({ user, onBack }) {
       responsibilities: job.responsibilities.trim(),
       requirements: job.requirements.trim(),
       skills,
-      salary_min: job.salaryMin === "" ? null : Number(job.salaryMin),
-      salary_max: job.salaryMax === "" ? null : Number(job.salaryMax),
+      salary_min: salaryMin,
+      salary_max: salaryMax,
       currency: "NGN",
       location: job.location.trim() || null,
       work_type: job.workType,
