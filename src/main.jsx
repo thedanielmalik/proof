@@ -1446,46 +1446,65 @@ function JobDetails({ jobId, user, userRole, onBack, onAuth, onApplications, onE
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      if (!supabase) return;
-      const { data, error: jobError } = await supabase
-        .from("jobs")
-        .select("*, companies(name, logo_url, industry, location, description)")
-        .eq("id", jobId)
-        .eq("published", true)
-        .maybeSingle();
-      if (jobError) {
-        if (!cancelled) { setError(jobError.message); setLoading(false); }
-        return;
-      }
-      if (!data) {
-        if (!cancelled) { setError("This opportunity is no longer available."); setLoading(false); }
-        return;
-      }
-      let existing = null;
-      if (user && userRole === "talent") {
-        const profileResult = await supabase
-          .from("profiles")
-          .select("published")
-          .eq("id", user.id)
-          .maybeSingle();
-        if (profileResult.error) throw profileResult.error;
-        setTalentProfilePublished(Boolean(profileResult.data?.published));
+      setLoading(true);
+      setError("");
 
-        const result = await supabase
-          .from("applications")
-          .select("*")
-          .eq("job_id", jobId)
-          .eq("talent_id", user.id)
-          .maybeSingle();
-        if (result.error) throw result.error;
-        existing = result.data || null;
+      if (!supabase) {
+        if (!cancelled) {
+          setError("PROOF is not connected to its database yet.");
+          setLoading(false);
+        }
+        return;
       }
-      if (!cancelled) {
-        setJob(data);
-        setApplication(existing);
-        setLoading(false);
+
+      try {
+        const { data, error: jobError } = await supabase
+          .from("jobs")
+          .select("*, companies(name, logo_url, industry, location, description)")
+          .eq("id", jobId)
+          .eq("published", true)
+          .maybeSingle();
+
+        if (jobError) throw jobError;
+        if (!data) throw new Error("This opportunity is no longer available.");
+
+        let existing = null;
+        if (user && userRole === "talent") {
+          const profileResult = await supabase
+            .from("profiles")
+            .select("published")
+            .eq("id", user.id)
+            .maybeSingle();
+          if (profileResult.error) throw profileResult.error;
+
+          const isPublished = Boolean(profileResult.data?.published);
+          if (!cancelled) setTalentProfilePublished(isPublished);
+
+          const result = await supabase
+            .from("applications")
+            .select("*")
+            .eq("job_id", jobId)
+            .eq("talent_id", user.id)
+            .maybeSingle();
+          if (result.error) throw result.error;
+          existing = result.data || null;
+        } else if (!cancelled) {
+          setTalentProfilePublished(null);
+        }
+
+        if (!cancelled) {
+          setJob(data);
+          setApplication(existing);
+          setLoading(false);
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(loadError.message || "Could not load this opportunity.");
+          setLoading(false);
+        }
       }
     }
+
     load();
     return () => { cancelled = true; };
   }, [jobId, user, userRole]);
