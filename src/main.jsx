@@ -112,7 +112,7 @@ function ProofCard() {
   );
 }
 
-function LandingPage({ onStart, onHire }) {
+function LandingPage({ onStart, onHire, onSignIn }) {
   const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
 
   return (
@@ -127,7 +127,7 @@ function LandingPage({ onStart, onHire }) {
           <button onClick={() => navigate("/founding-100")}>Founding 100</button>
         </nav>
         <div className="nav__actions">
-          <button className="button button--ghost" onClick={onStart}>Sign in</button>
+          <button className="button button--ghost" onClick={onSignIn}>Sign in</button>
           <button className="button button--dark" onClick={onStart}>Build my Proof</button>
         </div>
       </header>
@@ -453,7 +453,8 @@ function ProgressBar({ stepIndex }) {
 
 
 function AuthScreen({ onAuthenticated, onExit }) {
-  const [mode, setMode] = useState("signup");
+  const initialAuthMode = new URLSearchParams(window.location.search).get("mode") === "signin" ? "signin" : "signup";
+  const [mode, setMode] = useState(initialAuthMode);
   const [name, setName] = useState("");
   const [email, setEmail] = useState(() => window.localStorage.getItem("proof-beta-email") || "");
   const [password, setPassword] = useState("");
@@ -2980,6 +2981,7 @@ function App() {
 
   const goLanding = () => navigate("/");
   const goAuth = () => navigate("/?auth=1");
+  const goSignIn = () => navigate("/?auth=1&mode=signin");
   const goJobs = () => navigate("/jobs");
   const goApplications = () => navigate("/candidate/applications");
   const goEmployer = () => navigate("/employer");
@@ -3073,7 +3075,7 @@ function App() {
   }
 
 
-  return <LandingPage onStart={() => user ? navigate("/build") : goAuth()} onHire={() => user && userRole === "employer" ? goEmployer() : goAuth()} />;
+  return <LandingPage onStart={() => user ? navigate("/build") : goAuth()} onSignIn={goSignIn} onHire={() => user && userRole === "employer" ? goEmployer() : goAuth()} />;
 }
 
 createRoot(document.getElementById("root")).render(<AppErrorBoundary><App /></AppErrorBoundary>);
