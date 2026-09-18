@@ -1512,7 +1512,6 @@ function MessagesPage({ user, userRole, onBack, onEmployer, onJobs }) {
       setError(result.error.message || "Could not send your message.");
     } else {
       setDraft("");
-      await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", activeId);
       setMessages((current) => current.some((message) => message.id === result.data.id) ? current : [...current, result.data]);
       await loadConversations(activeId);
     }
@@ -2727,7 +2726,6 @@ function App() {
   const goAuth = () => navigate("/?auth=1");
   const goJobs = () => navigate("/jobs");
   const goApplications = () => navigate("/candidate/applications");
-  const goMessages = () => navigate("/messages");
   const goEmployer = () => navigate("/employer");
   const goEmployerJobs = () => navigate("/employer/jobs");
 
