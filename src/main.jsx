@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import "./styles.css";
+import { supabase } from "./lib/supabase";
 
 const demoSkills = ["Digital Marketing", "Content", "Strategy"];
 
@@ -259,7 +260,100 @@ function ProgressBar({ stepIndex }) {
   );
 }
 
-function Onboarding({ onExit }) {
+
+function AuthScreen({ onAuthenticated, onExit }) {
+  const [mode, setMode] = useState("signup");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState("talent");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  const submit = async (event) => {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    setMessage("");
+
+    try {
+      if (!supabase) throw new Error("Supabase is not configured. Add the environment variables from .env.example.");
+
+      if (mode === "signup") {
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { full_name: name, role } },
+        });
+        if (signUpError) throw signUpError;
+
+        if (data.session) {
+          await supabase.from("profiles").update({ role, name }).eq("id", data.user.id);
+          onAuthenticated(data.user);
+        } else {
+          setMessage("Account created. Check your email to confirm your account, then sign in.");
+          setMode("signin");
+        }
+      } else {
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        if (signInError) throw signInError;
+        onAuthenticated(data.user);
+      }
+    } catch (err) {
+      setError(err.message || "Something went wrong.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="auth-shell">
+      <header className="onboarding-nav">
+        <button className="back-home" onClick={onExit}><ArrowLeft size={16} /> Back</button>
+        <a className="brand" href="#" onClick={(e) => { e.preventDefault(); onExit(); }}>PROOF<span>.</span></a>
+        <span className="save-state">Secure account</span>
+      </header>
+      <main className="auth-page">
+        <div className="auth-copy">
+          <span className="eyebrow">WELCOME TO PROOF</span>
+          <h1>{mode === "signup" ? "Let's build your Proof." : "Welcome back."}</h1>
+          <p>{mode === "signup" ? "Create your account first. Your profile will belong to you, not this browser." : "Sign in and continue building your profile."}</p>
+        </div>
+        <form className="auth-card" onSubmit={submit}>
+          <div className="auth-tabs">
+            <button type="button" className={mode === "signup" ? "auth-tab is-active" : "auth-tab"} onClick={() => setMode("signup")}>Create account</button>
+            <button type="button" className={mode === "signin" ? "auth-tab is-active" : "auth-tab"} onClick={() => setMode("signin")}>Sign in</button>
+          </div>
+
+          {mode === "signup" && <>
+            <label>Full name<input required value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" /></label>
+            <div className="auth-role">
+              <span className="field-label">I am</span>
+              <div className="choice-grid">
+                <button type="button" className={role === "talent" ? "choice is-selected" : "choice"} onClick={() => setRole("talent")}>Looking for opportunities</button>
+                <button type="button" className={role === "employer" ? "choice is-selected" : "choice"} onClick={() => setRole("employer")}>Hiring talent</button>
+              </div>
+            </div>
+          </>}
+
+          <label>Email<input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" /></label>
+          <label>Password<input required minLength={8} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 8 characters" /></label>
+
+          {error && <div className="error-banner">{error}</div>}
+          {message && <div className="soft-note"><strong>Almost there.</strong><span>{message}</span></div>}
+
+          <Button className="button--dark button--large auth-submit" disabled={busy}>
+            {busy ? "Working..." : mode === "signup" ? "Create my account" : "Sign in"} <ArrowUpRight size={17} />
+          </Button>
+          <p className="auth-note">By continuing, you agree to use PROOF responsibly and keep your profile information accurate.</p>
+        </form>
+      </main>
+    </div>
+  );
+}
+
+function Onboarding({ onExit, user }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState({
@@ -354,9 +448,84 @@ function Onboarding({ onExit }) {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const publish = () => {
-    window.localStorage.setItem("proof-published-demo", "true");
-    setStepIndex(onboardingSteps.length - 1);
+  const publish = async () => {
+    if (!supabase || !user) return;
+    setSaving(true);
+    try {
+      const { error: profileError } = await supabase.from("profiles").upsert({
+        id: user.id,
+        role: "talent",
+        name: profile.name,
+        location: profile.location,
+        headline: profile.headline || profile.role,
+        bio: profile.bio,
+        intent: profile.intent,
+        video_name: profile.videoName || null,
+        published: true,
+      });
+      if (profileError) throw profileError;
+
+      await supabase.from("profile_skills").delete().eq("profile_id", user.id);
+      if (profile.skills.length) {
+        const { error } = await supabase.from("profile_skills").insert(
+          profile.skills.map((skill, index) => ({ profile_id: user.id, skill, sort_order: index }))
+        );
+        if (error) throw error;
+      }
+
+      await supabase.from("experiences").delete().eq("profile_id", user.id);
+      const experiences = profile.experience.filter((item) => item.company || item.role || item.description).map((item, index) => ({
+        profile_id: user.id,
+        company: item.company,
+        role: item.role,
+        start_date: item.start ? item.start + "-01" : null,
+        end_date: item.current || !item.end ? null : item.end + "-01",
+        current: item.current,
+        description: item.description,
+        achievements: item.achievements,
+        sort_order: index,
+      }));
+      if (experiences.length) {
+        const { error } = await supabase.from("experiences").insert(experiences);
+        if (error) throw error;
+      }
+
+      await supabase.from("education").delete().eq("profile_id", user.id);
+      if (profile.education.institution || profile.education.qualification || profile.education.field) {
+        const { error } = await supabase.from("education").insert({
+          profile_id: user.id,
+          institution: profile.education.institution,
+          qualification: profile.education.qualification,
+          field: profile.education.field,
+          start_year: profile.education.start ? Number(profile.education.start) : null,
+          end_year: profile.education.end ? Number(profile.education.end) : null,
+        });
+        if (error) throw error;
+      }
+
+      await supabase.from("portfolio_items").delete().eq("profile_id", user.id);
+      const work = profile.work.filter((item) => item.title || item.description).map((item, index) => ({
+        profile_id: user.id,
+        title: item.title,
+        description: item.description,
+        role: item.role,
+        result: item.result,
+        url: item.url || null,
+        sort_order: index,
+      }));
+      if (work.length) {
+        const { error } = await supabase.from("portfolio_items").insert(work);
+        if (error) throw error;
+      }
+
+      window.localStorage.removeItem("proof-draft");
+      window.localStorage.setItem("proof-published-demo", "true");
+      setStepIndex(onboardingSteps.length - 1);
+    } catch (err) {
+      setError(err.message || "Could not save your Proof.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -659,9 +828,45 @@ function ProofVideoStep({ videoPreview, setVideoPreview, setVideoBlob, videoName
 
 function App() {
   const [mode, setMode] = useState("landing");
-  return mode === "landing"
-    ? <LandingPage onStart={() => { window.scrollTo({ top: 0 }); setMode("onboarding"); }} />
-    : <Onboarding onExit={() => setMode("landing")} />;
+  const [user, setUser] = useState(null);
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  useEffect(() => {
+    if (!supabase) {
+      setCheckingSession(false);
+      return;
+    }
+    supabase.auth.getSession().then(({ data }) => {
+      setUser(data.session?.user ?? null);
+      setCheckingSession(false);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  if (checkingSession) return <div className="loading-screen">Loading PROOF…</div>;
+
+  if (mode === "auth") {
+    return <AuthScreen onExit={() => setMode("landing")} onAuthenticated={(authenticatedUser) => {
+      setUser(authenticatedUser);
+      setMode("onboarding");
+    }} />;
+  }
+
+  if (mode === "onboarding") {
+    if (!user) return <AuthScreen onExit={() => setMode("landing")} onAuthenticated={(authenticatedUser) => {
+      setUser(authenticatedUser);
+      setMode("onboarding");
+    }} />;
+    return <Onboarding user={user} onExit={() => setMode("landing")} />;
+  }
+
+  return <LandingPage onStart={() => {
+    window.scrollTo({ top: 0 });
+    setMode(user ? "onboarding" : "auth");
+  }} />;
 }
 
 createRoot(document.getElementById("root")).render(
