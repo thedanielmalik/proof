@@ -1478,7 +1478,9 @@ function App() {
     if (publicMatch) return { type: "public", slug: publicMatch[1] };
     if (jobMatch) return { type: "job", id: jobMatch[1] };
     if (path === "/jobs") return { type: "jobs" };
+    if (path === "/build") return { type: "build" };
     if (path === "/candidate/applications") return { type: "applications" };
+    if (new URLSearchParams(window.location.search).get("auth") === "1") return { type: "auth" };
     return { type: "landing" };
   };
 
@@ -1514,12 +1516,6 @@ function App() {
   const goAuth = () => navigate("/?auth=1");
   const goJobs = () => navigate("/jobs");
   const goApplications = () => navigate("/candidate/applications");
-
-  useEffect(() => {
-    if (route.type === "landing" && window.location.search.includes("auth=1")) {
-      setRoute({ type: "auth" });
-    }
-  }, [route.type]);
 
   if (checkingSession) return <div className="loading-screen">Loading PROOF…</div>;
 
