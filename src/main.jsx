@@ -825,12 +825,13 @@ function Onboarding({ onExit, user, onPublished }) {
       let uploadedVideoUrl = profile.videoUrl || null;
 
       if (videoBlob) {
+        const baseMime = (videoBlob.type || "video/webm").split(";")[0].trim().toLowerCase();
         const videoExtensions = { "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov" };
-        const extension = videoExtensions[videoBlob.type] || "webm";
+        const extension = videoExtensions[baseMime] || "webm";
         const path = user.id + "/proof-" + Date.now() + "." + extension;
 
         const { error: uploadError } = await supabase.storage.from("proof-videos-public").upload(path, videoBlob, {
-          contentType: videoBlob.type,
+          contentType: baseMime,
           cacheControl: "3600",
           upsert: false,
         });
