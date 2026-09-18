@@ -25,6 +25,7 @@ import {
   Globe2,
   Upload,
   MessageCircle,
+  ShieldCheck,
 
 } from "lucide-react";
 import "./styles.css";
@@ -112,7 +113,7 @@ function ProofCard() {
   );
 }
 
-function LandingPage({ onStart, onHire, onSignIn }) {
+function LandingPage({ onStart, onHire, onSignIn, user, userRole }) {
   const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
 
   return (
@@ -127,8 +128,21 @@ function LandingPage({ onStart, onHire, onSignIn }) {
           <button onClick={() => navigate("/founding-100")}>Founding 100</button>
         </nav>
         <div className="nav__actions">
-          <button className="button button--ghost" onClick={onSignIn}>Sign in</button>
-          <button className="button button--dark" onClick={onStart}>Build my Proof</button>
+          {user ? (
+            <>
+              {userRole === "admin"
+                ? <button className="button button--ghost" onClick={() => navigate("/admin")}>Command center</button>
+                : userRole === "employer"
+                  ? <button className="button button--ghost" onClick={() => navigate("/employer")}>Dashboard</button>
+                  : <button className="button button--ghost" onClick={() => navigate("/build")}>Edit my Proof</button>}
+              <button className="button button--dark" onClick={async () => { await supabase?.auth.signOut(); navigate("/"); }}>Sign out</button>
+            </>
+          ) : (
+            <>
+              <button className="button button--ghost" onClick={onSignIn}>Sign in</button>
+              <button className="button button--dark" onClick={onStart}>Build my Proof</button>
+            </>
+          )}
         </div>
       </header>
 
@@ -139,7 +153,9 @@ function LandingPage({ onStart, onHire, onSignIn }) {
             <h1>DON'T JUST<br /><span>TELL THEM.</span><br />SHOW THEM.</h1>
             <p className="hero__lead">Your CV tells employers where you've been. Your Proof shows them what you can do.</p>
             <div className="hero__buttons">
-              <Button className="button--lime button--large" onClick={onStart}>Build my Proof <ArrowUpRight size={18} /></Button>
+              <Button className="button--lime button--large" onClick={onStart}>
+                {userRole === "employer" ? "Open employer dashboard" : userRole === "admin" ? "Open command center" : user ? "Open my Proof" : "Build my Proof"} <ArrowUpRight size={18} />
+              </Button>
               <Button className="button--outline button--large" onClick={onHire}>I'm hiring talent</Button>
             </div>
             <div className="hero__trust">
@@ -1212,7 +1228,7 @@ function JobCard({ job, onOpen }) {
   );
 }
 
-function JobsHeader({ onBack, onApplications, onEmployer, onAdmin, user, userRole }) {
+function JobsHeader({ onBack, onApplications, onEmployer, onAdmin, onAuth, user, userRole }) {
   return (
     <header className="jobs-nav">
       <a className="brand" href="#" onClick={(e) => { e.preventDefault(); onBack(); }}>PROOF<span>.</span></a>
@@ -1237,7 +1253,7 @@ function JobsHeader({ onBack, onApplications, onEmployer, onAdmin, user, userRol
                 ? <Button className="button--outline" onClick={onEmployer}>Employer dashboard</Button>
                 : <Button className="button--outline" onClick={onApplications}>Applications</Button>}
           </>
-        ) : <Button className="button--dark" onClick={() => window.dispatchEvent(new CustomEvent("proof-auth"))}>Build my Proof</Button>}
+        ) : <Button className="button--dark" onClick={onAuth}>Build my Proof</Button>}
       </div>
     </header>
   );
@@ -1273,12 +1289,6 @@ function JobsPage({ user, userRole, onBack, onAuth, onApplications, onEmployer, 
     return () => { cancelled = true; };
   }, []);
 
-  useEffect(() => {
-    const listener = () => onAuth();
-    window.addEventListener("proof-auth", listener);
-    return () => window.removeEventListener("proof-auth", listener);
-  }, [onAuth]);
-
   const filteredJobs = jobs.filter((job) => {
     const q = search.trim().toLowerCase();
     const searchable = [
@@ -1297,7 +1307,7 @@ function JobsPage({ user, userRole, onBack, onAuth, onApplications, onEmployer, 
 
   return (
     <div className="jobs-shell">
-      <JobsHeader user={user} userRole={userRole} onBack={onBack} onApplications={onApplications} onEmployer={onEmployer} onAdmin={onAdmin} />
+      <JobsHeader user={user} userRole={userRole} onBack={onBack} onApplications={onApplications} onEmployer={onEmployer} onAdmin={onAdmin} onAuth={onAuth} />
       <main className="jobs-page">
         <section className="jobs-hero">
           <div>
@@ -1408,6 +1418,10 @@ function JobDetails({ jobId, user, userRole, onBack, onAuth, onApplications, onE
 
   const apply = async () => {
     if (!user) { onAuth(); return; }
+    if (userRole !== "talent") {
+      setError("Only talent accounts can apply for opportunities.");
+      return;
+    }
     if (!supabase) return;
     setApplying(true);
     setError("");
@@ -1491,6 +1505,13 @@ function JobDetails({ jobId, user, userRole, onBack, onAuth, onApplications, onE
                 <strong>Already applied.</strong>
                 <span>Status: {application.status}</span>
                 <div className="apply-success__actions"><Button className="button--outline" onClick={() => navigate("/messages?application=" + application.id)}>Message employer <MessageCircle size={14} /></Button><Button className="button--outline" onClick={onApplications}>View my applications</Button></div>
+              </div>
+            ) : userRole === "admin" ? (
+              <div className="apply-success">
+                <ShieldCheck size={20} />
+                <strong>Admin account</strong>
+                <span>This account is for managing the PROOF beta, not applying to roles.</span>
+                <Button className="button--dark" onClick={onAdmin}>Open command center <ArrowRight size={15} /></Button>
               </div>
             ) : userRole === "employer" ? (
               <div className="apply-success">
@@ -2782,7 +2803,7 @@ function EmployerApplicants({ user, jobId, onBack, onDashboard }) {
   );
 }
 
-function PublicProfile({ slug, onBack }) {
+function PublicProfile({ slug, user, userRole, onBack }) {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState(null);
   const [skills, setSkills] = useState([]);
@@ -2881,7 +2902,14 @@ function PublicProfile({ slug, onBack }) {
     <div className="public-shell">
       <header className="public-nav">
         <a className="brand" href="#" onClick={(e) => { e.preventDefault(); onBack(); }}>PROOF<span>.</span></a>
-        <Button className="button--dark" onClick={share}>Share my Proof <ArrowUpRight size={16} /></Button>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          {user?.id === profile?.id && userRole === "admin" ? (
+            <Button className="button--outline" onClick={() => navigate("/admin")}>Command center</Button>
+          ) : user?.id === profile?.id ? (
+            <Button className="button--outline" onClick={() => navigate("/build")}>Edit my Proof</Button>
+          ) : null}
+          <Button className="button--dark" onClick={share}>Share this Proof <ArrowUpRight size={16} /></Button>
+        </div>
       </header>
 
       <main className="public-page">
@@ -3134,7 +3162,7 @@ function App() {
   if (checkingSession) return <div className="loading-screen">Loading PROOF…</div>;
 
   if (route.type === "public") {
-    return <PublicProfile slug={route.slug} onBack={goLanding} />;
+    return <PublicProfile slug={route.slug} user={user} userRole={userRole} onBack={goLanding} />;
   }
 
   if (route.type === "founding100") {
@@ -3211,6 +3239,10 @@ function App() {
 
   if (route.type === "messages") {
     if (!user) { goAuth(); return null; }
+    if (userRole === "admin") {
+      navigate("/admin");
+      return null;
+    }
     return <MessagesPage user={user} userRole={userRole} onBack={goLanding} onEmployer={goEmployer} onJobs={goJobs} />;
   }
 
@@ -3240,7 +3272,13 @@ function App() {
   }
 
 
-  return <LandingPage onStart={() => user ? navigate("/build") : goAuth()} onSignIn={goSignIn} onHire={() => user && userRole === "employer" ? goEmployer() : goAuth()} />;
+  return <LandingPage
+    user={user}
+    userRole={userRole}
+    onStart={() => user ? (userRole === "admin" ? navigate("/admin") : userRole === "employer" ? navigate("/employer") : navigate("/build")) : goAuth()}
+    onSignIn={goSignIn}
+    onHire={() => user && userRole === "employer" ? goEmployer() : goAuth()}
+  />;
 }
 
 createRoot(document.getElementById("root")).render(<AppErrorBoundary><App /></AppErrorBoundary>);
