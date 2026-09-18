@@ -944,7 +944,7 @@ function JobsHeader({ onBack, onApplications, onEmployer, user, userRole }) {
         <button onClick={() => navigate("/#how")}>How it works</button>
       </nav>
       <div className="jobs-nav__actions">
-        {user ? (userRole === "employer" ? <Button className="button--outline" onClick={onEmployer}>Employer dashboard</Button> : <Button className="button--outline" onClick={onApplications}>Applications</Button>) : <Button className="button--dark" onClick={() => window.dispatchEvent(new CustomEvent("proof-auth"))}>Build my Proof</Button>}
+        {user ? <><UnreadMessages user={user} onOpen={() => navigate("/messages")} />{userRole === "employer" ? <Button className="button--outline" onClick={onEmployer}>Employer dashboard</Button> : <Button className="button--outline" onClick={onApplications}>Applications</Button>}</> : <Button className="button--dark" onClick={() => window.dispatchEvent(new CustomEvent("proof-auth"))}>Build my Proof</Button>}
       </div>
     </header>
   );
