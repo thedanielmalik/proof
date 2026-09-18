@@ -2993,3 +2993,252 @@ a {
   align-items: center;
   gap: 8px;
 }
+
+/* Founding 100 */
+.beta-shell {
+  min-height: 100vh;
+  background: var(--paper);
+}
+
+.beta-nav {
+  position: relative;
+  max-width: 1320px;
+  margin: 0 auto;
+}
+
+.beta-page {
+  width: min(1240px, calc(100% - 56px));
+  margin: 0 auto;
+  padding: 86px 0 110px;
+}
+
+.beta-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(420px, .84fr);
+  gap: 76px;
+  align-items: start;
+}
+
+.beta-hero__copy {
+  padding-top: 25px;
+}
+
+.beta-hero__copy h1 {
+  max-width: 760px;
+  margin: 16px 0 20px;
+  font-size: clamp(58px, 7vw, 96px);
+  line-height: .86;
+  letter-spacing: -.08em;
+}
+
+.beta-hero__copy > p {
+  max-width: 650px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1.6;
+}
+
+.beta-points {
+  display: grid;
+  gap: 1px;
+  margin-top: 48px;
+  border-top: 1px solid var(--line);
+}
+
+.beta-points > div {
+  display: grid;
+  grid-template-columns: 42px 90px minmax(0,1fr);
+  gap: 18px;
+  align-items: center;
+  padding: 19px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.beta-points > div > span {
+  color: #A0A19A;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .12em;
+}
+
+.beta-points strong {
+  font-size: 13px;
+  letter-spacing: -.01em;
+}
+
+.beta-points p {
+  margin: 0;
+  color: #7C7D76;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.beta-form {
+  padding: 28px;
+  border: 1px solid rgba(17,17,17,.08);
+  border-radius: 28px;
+  background: white;
+  box-shadow: 0 28px 72px rgba(17,17,17,.07);
+}
+
+.beta-form__top {
+  margin-bottom: 23px;
+}
+
+.beta-form__top h2 {
+  margin: 10px 0 8px;
+  font-size: 38px;
+  line-height: .95;
+  letter-spacing: -.06em;
+}
+
+.beta-form__top p {
+  margin: 0;
+  color: #81827B;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.beta-role-grid {
+  margin-bottom: 21px;
+}
+
+.beta-role-grid .choice {
+  min-height: 76px;
+  align-items: flex-start;
+  justify-content: center;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+}
+
+.beta-role-grid .choice span {
+  display: block;
+  color: #92938C;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.beta-submit {
+  width: 100%;
+  margin-top: 3px;
+}
+
+.beta-form-note {
+  margin: 12px 2px 0;
+  color: #A0A19A;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.beta-success-page {
+  width: min(760px, calc(100% - 40px));
+  min-height: calc(100vh - 95px);
+  margin: 0 auto;
+  display: grid;
+  place-items: center;
+  padding: 65px 0;
+}
+
+.beta-success-card {
+  width: 100%;
+  padding: 44px;
+  border-radius: 30px;
+  background: var(--ink);
+  color: white;
+  text-align: center;
+  box-shadow: 0 30px 70px rgba(17,17,17,.12);
+}
+
+.beta-success-mark {
+  width: 62px;
+  height: 62px;
+  margin: 0 auto 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--lime);
+  color: var(--ink);
+}
+
+.beta-success-card .eyebrow {
+  color: rgba(255,255,255,.55);
+}
+
+.beta-success-card h1 {
+  margin: 15px 0 14px;
+  font-size: clamp(48px, 6vw, 76px);
+  line-height: .88;
+  letter-spacing: -.075em;
+}
+
+.beta-success-card p {
+  max-width: 560px;
+  margin: 0 auto;
+  color: rgba(255,255,255,.67);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.beta-success-actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 28px;
+}
+
+.beta-success-card .button--outline {
+  border-color: rgba(255,255,255,.22);
+  color: white;
+}
+
+@media (max-width: 980px) {
+  .beta-hero {
+    grid-template-columns: 1fr;
+    gap: 42px;
+  }
+
+  .beta-hero__copy {
+    padding-top: 0;
+  }
+}
+
+@media (max-width: 620px) {
+  .beta-nav {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .beta-page {
+    width: calc(100% - 36px);
+    padding-top: 52px;
+  }
+
+  .beta-hero__copy h1 {
+    font-size: 58px;
+  }
+
+  .beta-form {
+    padding: 19px;
+    border-radius: 22px;
+  }
+
+  .beta-points > div {
+    grid-template-columns: 34px 70px minmax(0,1fr);
+    gap: 11px;
+  }
+
+  .beta-success-card {
+    padding: 30px 21px;
+  }
+
+  .beta-success-card h1 {
+    font-size: 52px;
+  }
+
+  .beta-success-actions .button {
+    width: 100%;
+  }
+}
