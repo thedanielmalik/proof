@@ -597,6 +597,7 @@ function Onboarding({ onExit, user, onPublished }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [profileLoadError, setProfileLoadError] = useState("");
   const [profile, setProfile] = useState({
     name: "",
     location: "",
@@ -622,6 +623,7 @@ function Onboarding({ onExit, user, onPublished }) {
     let cancelled = false;
 
     async function loadExistingProfile() {
+      let loadedSuccessfully = false;
       try {
         const [profileResult, skillsResult, experiencesResult, educationResult, workResult] = await Promise.all([
           supabase.from("profiles").select("name,location,headline,role_summary,bio,intent,video_url,video_name").eq("id", user.id).maybeSingle(),
@@ -634,7 +636,8 @@ function Onboarding({ onExit, user, onPublished }) {
         for (const result of [profileResult, skillsResult, experiencesResult, educationResult, workResult]) {
           if (result.error) throw result.error;
         }
-        if (cancelled || !profileResult.data) return;
+        if (cancelled) return;
+        if (!profileResult.data) throw new Error("We couldn't load your PROOF profile.");
 
         const dbProfile = profileResult.data;
         if (dbProfile.video_url) setVideoPreview(dbProfile.video_url);
@@ -689,10 +692,12 @@ function Onboarding({ onExit, user, onPublished }) {
           skills: localDraft.skills || dbDraft.skills || current.skills,
         }));
         window.localStorage.removeItem("proof-draft");
+        loadedSuccessfully = true;
       } catch (error) {
         console.warn("PROOF profile hydration:", error);
+        if (!cancelled) setProfileLoadError(error.message || "We couldn't load your existing Proof.");
       } finally {
-        if (!cancelled) setHydrated(true);
+        if (!cancelled) setHydrated(loadedSuccessfully);
       }
     }
 
@@ -740,6 +745,27 @@ function Onboarding({ onExit, user, onPublished }) {
   const addWork = () => {
     update("work", [...profile.work, { title: "", description: "", role: "", result: "", url: "" }]);
   };
+
+  if (profileLoadError) {
+    return (
+      <div className="public-error">
+        <a className="brand" href="#" onClick={(event) => { event.preventDefault(); onExit(); }}>PROOF<span>.</span></a>
+        <div>
+          <span className="eyebrow">PROFILE LOAD ERROR</span>
+          <h1>We couldn't safely load your Proof.</h1>
+          <p style={{ maxWidth: "560px", margin: "0 auto 24px", color: "#777872", lineHeight: 1.6 }}>
+            Your existing profile was not loaded, so PROOF has not replaced anything with blank data.
+          </p>
+          <p style={{ maxWidth: "560px", margin: "0 auto 24px", color: "#777872", lineHeight: 1.6 }}>{profileLoadError}</p>
+          <Button className="button--dark button--large" onClick={() => window.location.reload()}>Try again <RefreshCw size={17} /></Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hydrated) {
+    return <div className="loading-screen">Loading your Proof…</div>;
+  }
 
   const canContinue = () => {
     if (stepIndex === 0) return profile.name.trim() && profile.headline.trim() && profile.location.trim();
