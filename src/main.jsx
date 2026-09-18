@@ -598,6 +598,7 @@ function Onboarding({ onExit, user, onPublished }) {
   const [newSkill, setNewSkill] = useState("");
   const [videoPreview, setVideoPreview] = useState("");
   const [videoBlob, setVideoBlob] = useState(null);
+  const [hydrated, setHydrated] = useState(false);
   const draftStorageKey = user?.id ? "proof-draft-" + user.id : null;
 
   useEffect(() => {
@@ -673,6 +674,8 @@ function Onboarding({ onExit, user, onPublished }) {
         window.localStorage.removeItem("proof-draft");
       } catch (error) {
         console.warn("PROOF profile hydration:", error);
+      } finally {
+        if (!cancelled) setHydrated(true);
       }
     }
 
@@ -681,12 +684,12 @@ function Onboarding({ onExit, user, onPublished }) {
   }, [user?.id, draftStorageKey]);
 
   useEffect(() => {
-    if (!draftStorageKey) return undefined;
+    if (!draftStorageKey || !hydrated) return undefined;
     const timer = window.setTimeout(() => {
       window.localStorage.setItem(draftStorageKey, JSON.stringify(profile));
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [profile, draftStorageKey]);
+  }, [profile, draftStorageKey, hydrated]);
 
   const update = (key, value) => setProfile((current) => ({ ...current, [key]: value }));
 
