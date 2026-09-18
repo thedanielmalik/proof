@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import "./styles.css";
 import { supabase } from "./lib/supabase";
+import AdminPage from "./AdminPage";
 
 const demoSkills = ["Digital Marketing", "Content", "Strategy"];
 
@@ -2887,6 +2888,7 @@ function App() {
     if (path === "/employer") return { type: "employer" };
     if (path === "/messages") return { type: "messages" };
     if (path === "/founding-100") return { type: "founding100" };
+    if (path === "/admin") return { type: "admin" };
     if (path === "/candidate/applications") return { type: "applications" };
     if (new URLSearchParams(window.location.search).get("auth") === "1") return { type: "auth" };
     return { type: "landing" };
@@ -2992,6 +2994,33 @@ function App() {
   if (route.type === "founding100") {
     return <Founding100Page onBack={goLanding} onAuth={goAuth} />;
   }
+
+  if (route.type === "admin") {
+    if (!user) {
+      goAuth();
+      return null;
+    }
+    if (userRole !== "admin") {
+      return (
+        <div className="public-error">
+          <a className="brand" href="#" onClick={(e) => { e.preventDefault(); goLanding(); }}>PROOF<span>.</span></a>
+          <div>
+            <span className="eyebrow">PRIVATE AREA</span>
+            <h1>Admin access only.</h1>
+            <p style={{ maxWidth: "520px", margin: "0 auto 24px", color: "#777872", lineHeight: 1.6 }}>
+              This is the private beta command center. Your current account does not have admin access.
+            </p>
+            <div style={{ display: "flex", gap: "9px", justifyContent: "center", flexWrap: "wrap" }}>
+              <Button className="button--dark button--large" onClick={goLanding}>Back to PROOF <ArrowUpRight size={18} /></Button>
+              <Button className="button--outline button--large" onClick={async () => { await supabase?.auth.signOut(); goAuth(); }}>Sign out</Button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return <AdminPage user={user} onBack={goLanding} onSignOut={async () => { await supabase?.auth.signOut(); goLanding(); }} />;
+  }
+
 
   if (route.type === "auth") {
     return <AuthScreen onExit={goLanding} onAuthenticated={(authenticatedUser, authenticatedRole) => {
