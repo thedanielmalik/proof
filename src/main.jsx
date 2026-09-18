@@ -353,7 +353,24 @@ function AuthScreen({ onAuthenticated, onExit }) {
   );
 }
 
-function Onboarding({ onExit, user }) {
+
+function makePublicSlug(name, userId) {
+  const base = (name || "talent")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 45) || "talent";
+  return base + "-" + userId.replace(/-/g, "").slice(0, 6);
+}
+
+function formatDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+}
+
+function Onboarding({ onExit, user, onPublished }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -453,28 +470,36 @@ function Onboarding({ onExit, user }) {
     if (!supabase || !user) return;
     setSaving(true);
     setSaveError("");
+
     try {
-      let uploadedVideoUrl = null;
+      const publicSlug = makePublicSlug(profile.name, user.id);
+      let uploadedVideoUrl = profile.videoUrl || null;
+
       if (videoBlob) {
         const extension = videoBlob.type.includes("mp4") ? "mp4" : "webm";
         const path = user.id + "/proof-" + Date.now() + "." + extension;
-        const { error: uploadError } = await supabase.storage.from("proof-videos").upload(path, videoBlob, {
+
+        const { error: uploadError } = await supabase.storage.from("proof-videos-public").upload(path, videoBlob, {
           contentType: videoBlob.type,
+          cacheControl: "3600",
           upsert: false,
         });
         if (uploadError) throw uploadError;
-        uploadedVideoUrl = path;
+
+        const { data: publicVideo } = supabase.storage.from("proof-videos-public").getPublicUrl(path);
+        uploadedVideoUrl = publicVideo.publicUrl;
       }
 
       const { error: profileError } = await supabase.from("profiles").upsert({
         id: user.id,
         role: "talent",
         name: profile.name,
+        public_slug: publicSlug,
         location: profile.location,
         headline: profile.headline || profile.role,
         bio: profile.bio,
         intent: profile.intent,
-        video_url: uploadedVideoUrl || profile.videoUrl || null,
+        video_url: uploadedVideoUrl,
         video_name: profile.videoName || null,
         published: true,
       });
@@ -489,17 +514,19 @@ function Onboarding({ onExit, user }) {
       }
 
       await supabase.from("experiences").delete().eq("profile_id", user.id);
-      const experiences = profile.experience.filter((item) => item.company || item.role || item.description).map((item, index) => ({
-        profile_id: user.id,
-        company: item.company,
-        role: item.role,
-        start_date: item.start ? item.start + "-01" : null,
-        end_date: item.current || !item.end ? null : item.end + "-01",
-        current: item.current,
-        description: item.description,
-        achievements: item.achievements,
-        sort_order: index,
-      }));
+      const experiences = profile.experience
+        .filter((item) => item.company || item.role || item.description)
+        .map((item, index) => ({
+          profile_id: user.id,
+          company: item.company,
+          role: item.role,
+          start_date: item.start ? item.start + "-01" : null,
+          end_date: item.current || !item.end ? null : item.end + "-01",
+          current: item.current,
+          description: item.description,
+          achievements: item.achievements,
+          sort_order: index,
+        }));
       if (experiences.length) {
         const { error } = await supabase.from("experiences").insert(experiences);
         if (error) throw error;
@@ -519,30 +546,35 @@ function Onboarding({ onExit, user }) {
       }
 
       await supabase.from("portfolio_items").delete().eq("profile_id", user.id);
-      const work = profile.work.filter((item) => item.title || item.description).map((item, index) => ({
-        profile_id: user.id,
-        title: item.title,
-        description: item.description,
-        role: item.role,
-        result: item.result,
-        url: item.url || null,
-        sort_order: index,
-      }));
+      const work = profile.work
+        .filter((item) => item.title || item.description)
+        .map((item, index) => ({
+          profile_id: user.id,
+          title: item.title,
+          description: item.description,
+          role: item.role,
+          result: item.result,
+          url: item.url || null,
+          sort_order: index,
+        }));
       if (work.length) {
         const { error } = await supabase.from("portfolio_items").insert(work);
         if (error) throw error;
       }
 
+      const publishedProfile = { ...profile, publicSlug, videoUrl: uploadedVideoUrl };
       window.localStorage.removeItem("proof-draft");
-      window.localStorage.setItem("proof-published-demo", "true");
-      setStepIndex(onboardingSteps.length - 1);
+      setProfile(publishedProfile);
+
+      if (onPublished) {
+        onPublished(publicSlug);
+      }
     } catch (err) {
-      setSaveError(err.message || "Could not save your Proof.");
+      setSaveError(err.message || "Could not publish your Proof.");
     } finally {
       setSaving(false);
     }
   };
-
   return (
     <div className="app-shell">
       <header className="onboarding-nav">
@@ -842,25 +874,259 @@ function ProofVideoStep({ videoPreview, setVideoPreview, setVideoBlob, videoName
   );
 }
 
+
+function PublicProfile({ slug, onBack }) {
+  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState(null);
+  const [skills, setSkills] = useState([]);
+  const [experiences, setExperiences] = useState([]);
+  const [education, setEducation] = useState(null);
+  const [work, setWork] = useState([]);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      if (!supabase) {
+        setError("PROOF is not connected to its database yet.");
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const { data: baseProfile, error: profileError } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("public_slug", slug)
+          .eq("published", true)
+          .maybeSingle();
+
+        if (profileError) throw profileError;
+        if (!baseProfile) {
+          setError("We couldn't find this Proof.");
+          setLoading(false);
+          return;
+        }
+
+        const [skillsResult, experiencesResult, educationResult, workResult] = await Promise.all([
+          supabase.from("profile_skills").select("skill, sort_order").eq("profile_id", baseProfile.id).order("sort_order"),
+          supabase.from("experiences").select("*").eq("profile_id", baseProfile.id).order("sort_order"),
+          supabase.from("education").select("*").eq("profile_id", baseProfile.id).limit(1).maybeSingle(),
+          supabase.from("portfolio_items").select("*").eq("profile_id", baseProfile.id).order("sort_order"),
+        ]);
+
+        if (skillsResult.error) throw skillsResult.error;
+        if (experiencesResult.error) throw experiencesResult.error;
+        if (educationResult.error) throw educationResult.error;
+        if (workResult.error) throw workResult.error;
+
+        if (!cancelled) {
+          setProfile(baseProfile);
+          setSkills((skillsResult.data || []).map((item) => item.skill));
+          setExperiences(experiencesResult.data || []);
+          setEducation(educationResult.data || null);
+          setWork(workResult.data || []);
+          setLoading(false);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err.message || "Something went wrong.");
+          setLoading(false);
+        }
+      }
+    }
+
+    load();
+    return () => { cancelled = true; };
+  }, [slug]);
+
+  const share = async () => {
+    const url = window.location.href;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: (profile?.name || "PROOF") + " on PROOF", text: "Check out my PROOF profile.", url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        window.alert("Proof link copied.");
+      }
+    } catch {
+      // User dismissed native sharing or clipboard is unavailable.
+    }
+  };
+
+  if (loading) return <div className="public-loading">Loading Proof…</div>;
+
+  if (error) {
+    return (
+      <div className="public-error">
+        <a className="brand" href="#" onClick={(e) => { e.preventDefault(); onBack(); }}>PROOF<span>.</span></a>
+        <div>
+          <span className="eyebrow">PROOF NOT FOUND</span>
+          <h1>{error}</h1>
+          <Button className="button--dark button--large" onClick={onBack}>Back to PROOF <ArrowUpRight size={18} /></Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="public-shell">
+      <header className="public-nav">
+        <a className="brand" href="#" onClick={(e) => { e.preventDefault(); onBack(); }}>PROOF<span>.</span></a>
+        <Button className="button--dark" onClick={share}>Share my Proof <ArrowUpRight size={16} /></Button>
+      </header>
+
+      <main className="public-page">
+        <section className="public-hero">
+          <div className="public-hero__meta">
+            <span className="status-pill"><span className="status-dot" /> {profile.intent || "Open to opportunities"}</span>
+            <span className="public-label">PROOF PROFILE</span>
+          </div>
+
+          <div className="public-identity">
+            <div className="public-avatar">{(profile.name || "P").split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase()}</div>
+            <div>
+              <h1>{profile.name || "Your name"}</h1>
+              <p>{profile.headline || "Professional"} {profile.location ? <><span>·</span> {profile.location}</> : null}</p>
+            </div>
+          </div>
+
+          <div className="public-main-grid">
+            <div>
+              <div className="public-video">
+                {profile.video_url ? <video src={profile.video_url} controls playsInline preload="metadata" /> : <div className="public-video__empty"><Video size={30} /><span>No Proof video added yet.</span></div>}
+              </div>
+            </div>
+
+            <aside className="public-side">
+              <div className="public-section">
+                <span className="eyebrow">ABOUT</span>
+                <p>{profile.bio || "This person hasn't added an introduction yet."}</p>
+              </div>
+
+              <div className="public-section">
+                <span className="eyebrow">SKILLS</span>
+                <div className="selected-skills">
+                  {skills.length ? skills.map((skill) => <span className="skill-pill static" key={skill}>{skill}</span>) : <span className="empty-note">No skills listed yet.</span>}
+                </div>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <section className="public-content">
+          <div className="public-content__section">
+            <span className="eyebrow">EXPERIENCE</span>
+            {experiences.length ? experiences.map((item) => (
+              <article className="public-item" key={item.id}>
+                <div className="public-item__year">{item.start_date ? formatDate(item.start_date) : ""}{item.current ? " — Present" : item.end_date ? " — " + formatDate(item.end_date) : ""}</div>
+                <div>
+                  <h2>{item.role || "Role"}</h2>
+                  <span>{item.company || "Independent"} </span>
+                  {item.description && <p>{item.description}</p>}
+                  {item.achievements && <strong className="public-result">{item.achievements}</strong>}
+                </div>
+              </article>
+            )) : <p className="empty-copy">Experience will appear here.</p>}
+          </div>
+
+          <div className="public-content__section">
+            <span className="eyebrow">WORK</span>
+            {work.length ? (
+              <div className="public-work-grid">
+                {work.map((item) => (
+                  <article className="public-work-card" key={item.id}>
+                    <span className="work-label">PROJECT</span>
+                    <h2>{item.title || "Project"}</h2>
+                    {item.role && <p className="work-role">{item.role}</p>}
+                    {item.description && <p>{item.description}</p>}
+                    {item.result && <strong>{item.result}</strong>}
+                    {item.url && <a href={item.url} target="_blank" rel="noreferrer">View project <ArrowUpRight size={15} /></a>}
+                  </article>
+                ))}
+              </div>
+            ) : <p className="empty-copy">Projects will appear here.</p>}
+          </div>
+
+          {education && (
+            <div className="public-content__section">
+              <span className="eyebrow">EDUCATION</span>
+              <article className="public-item">
+                <div className="public-item__year">{education.start_year || ""}{education.end_year ? " — " + education.end_year : ""}</div>
+                <div><h2>{education.qualification || "Education"}</h2><span>{education.institution}</span>{education.field && <p>{education.field}</p>}</div>
+              </article>
+            </div>
+          )}
+        </section>
+
+        <section className="public-bottom-cta">
+          <span className="eyebrow">THIS IS THEIR PROOF</span>
+          <h2>See the person.<br />See the work.</h2>
+          <Button className="button--lime button--large" onClick={share}>Share this Proof <ArrowUpRight size={18} /></Button>
+        </section>
+      </main>
+
+      <footer className="public-footer">
+        <a className="brand" href="#" onClick={(e) => { e.preventDefault(); onBack(); }}>PROOF<span>.</span></a>
+        <span>People. Skills. Opportunities.</span>
+      </footer>
+    </div>
+  );
+}
+
 function App() {
   const [mode, setMode] = useState("landing");
   const [user, setUser] = useState(null);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [publicSlug, setPublicSlug] = useState(() => {
+    const match = window.location.pathname.match(/^\/p\/([^/]+)/);
+    return match?.[1] || "";
+  });
 
   useEffect(() => {
+    const onPopState = () => {
+      const match = window.location.pathname.match(/^\/p\/([^/]+)/);
+      if (match?.[1]) {
+        setPublicSlug(match[1]);
+        setMode("public");
+      } else {
+        setPublicSlug("");
+        setMode("landing");
+      }
+    };
+
+    window.addEventListener("popstate", onPopState);
+
+    if (publicSlug) setMode("public");
+
     if (!supabase) {
       setCheckingSession(false);
-      return;
+      return () => window.removeEventListener("popstate", onPopState);
     }
+
     supabase.auth.getSession().then(({ data }) => {
       setUser(data.session?.user ?? null);
       setCheckingSession(false);
     });
+
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
-    return () => listener.subscription.unsubscribe();
+
+    return () => {
+      listener.subscription.unsubscribe();
+      window.removeEventListener("popstate", onPopState);
+    };
   }, []);
+
+  if (publicSlug || mode === "public") {
+    return <PublicProfile slug={publicSlug} onBack={() => {
+      window.history.pushState({}, "", "/");
+      setPublicSlug("");
+      setMode("landing");
+    }} />;
+  }
 
   if (checkingSession) return <div className="loading-screen">Loading PROOF…</div>;
 
@@ -876,7 +1142,12 @@ function App() {
       setUser(authenticatedUser);
       setMode("onboarding");
     }} />;
-    return <Onboarding user={user} onExit={() => setMode("landing")} />;
+    return <Onboarding user={user} onExit={() => setMode("landing")} onPublished={(slug) => {
+      window.history.pushState({}, "", "/p/" + slug);
+      setPublicSlug(slug);
+      setMode("public");
+      window.scrollTo({ top: 0 });
+    }} />;
   }
 
   return <LandingPage onStart={() => {
@@ -884,6 +1155,7 @@ function App() {
     setMode(user ? "onboarding" : "auth");
   }} />;
 }
+
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
