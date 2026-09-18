@@ -506,6 +506,8 @@ function AuthScreen({ onAuthenticated, onExit }) {
             .maybeSingle();
           if (profileError) throw profileError;
           if (!profileData) throw new Error("Your account was created, but your PROOF profile could not be loaded.");
+          window.localStorage.removeItem("proof-beta-email");
+          window.localStorage.removeItem("proof-beta-role");
           onAuthenticated(data.user, profileData.role || role, profileData);
         } else {
           setMessage("Account created. Check your email to confirm your account, then sign in.");
@@ -523,6 +525,8 @@ function AuthScreen({ onAuthenticated, onExit }) {
 
         if (profileError) throw profileError;
         if (!profileData) throw new Error("We found your account, but your PROOF profile could not be loaded.");
+        window.localStorage.removeItem("proof-beta-email");
+        window.localStorage.removeItem("proof-beta-role");
         onAuthenticated(data.user, profileData.role || "talent", profileData);
       }
     } catch (err) {
@@ -3246,6 +3250,8 @@ function App() {
           const nextUser = session?.user ?? null;
           setUser(nextUser);
           if (!nextUser) {
+            window.localStorage.removeItem("proof-beta-email");
+            window.localStorage.removeItem("proof-beta-role");
             setUserRole(null);
             return;
           }
