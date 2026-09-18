@@ -624,7 +624,7 @@ function Onboarding({ onExit, user, onPublished }) {
     async function loadExistingProfile() {
       try {
         const [profileResult, skillsResult, experiencesResult, educationResult, workResult] = await Promise.all([
-          supabase.from("profiles").select("name,location,headline,bio,intent,video_url,video_name").eq("id", user.id).maybeSingle(),
+          supabase.from("profiles").select("name,location,headline,role_summary,bio,intent,video_url,video_name").eq("id", user.id).maybeSingle(),
           supabase.from("profile_skills").select("skill,sort_order").eq("profile_id", user.id).order("sort_order"),
           supabase.from("experiences").select("*").eq("profile_id", user.id).order("sort_order"),
           supabase.from("education").select("*").eq("profile_id", user.id).limit(1).maybeSingle(),
@@ -643,7 +643,7 @@ function Onboarding({ onExit, user, onPublished }) {
           headline: dbProfile.headline || "",
           bio: dbProfile.bio || "",
           intent: dbProfile.intent || "Full-time",
-          role: dbProfile.headline || "",
+          role: dbProfile.role_summary || "",
           skills: (skillsResult.data || []).map((item) => item.skill),
           experience: (experiencesResult.data || []).map((item) => ({
             company: item.company || "",
@@ -798,6 +798,7 @@ function Onboarding({ onExit, user, onPublished }) {
         intent: profile.intent,
         video_url: uploadedVideoUrl,
         video_name: profile.videoName || null,
+        role_summary: profile.role.trim(),
       });
       if (profileError) throw profileError;
 
@@ -2952,6 +2953,7 @@ function PublicProfile({ slug, user, userRole, onBack }) {
             <aside className="public-side">
               <div className="public-section">
                 <span className="eyebrow">ABOUT</span>
+                {profile.role_summary && <p className="public-role-summary">{profile.role_summary}</p>}
                 <p>{profile.bio || "This person hasn't added an introduction yet."}</p>
               </div>
 
