@@ -3431,7 +3431,7 @@ function App() {
     userRole={userRole}
     onStart={() => user ? (userRole === "admin" ? navigate("/admin") : userRole === "employer" ? navigate("/employer") : navigate("/build")) : goAuth()}
     onSignIn={goSignIn}
-    onHire={() => user && userRole === "employer" ? goEmployer() : goAuth()}
+    onHire={() => user ? (userRole === "employer" ? goEmployer() : navigate("/employer")) : goAuth()}
   />;
 }
 
