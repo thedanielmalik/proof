@@ -2656,6 +2656,38 @@ function PublicProfile({ slug, onBack }) {
   );
 }
 
+class AppErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  componentDidCatch(error) {
+    console.error("PROOF app error:", error);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="public-error">
+          <div>
+            <span className="eyebrow">PROOF</span>
+            <h1>Something went wrong.</h1>
+            <p style={{ maxWidth: "560px", margin: "0 auto 24px", color: "#777872", lineHeight: 1.6 }}>
+              The app hit an unexpected browser error. Refresh the page to try again.
+            </p>
+            <Button className="button--dark button--large" onClick={() => window.location.reload()}>
+              Refresh PROOF <ArrowUpRight size={18} />
+            </Button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function App() {
   const getRoute = () => {
     const path = window.location.pathname;
@@ -2687,38 +2719,77 @@ function App() {
     const onPopState = () => setRoute(getRoute());
     window.addEventListener("popstate", onPopState);
 
-    if (!supabase) {
-      setCheckingSession(false);
-      return () => window.removeEventListener("popstate", onPopState);
+    let listener = null;
+    let cancelled = false;
+
+    async function boot() {
+      try {
+        if (!supabase) return;
+
+        const { data, error } = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise((resolve) => window.setTimeout(() => resolve({ data: { session: null }, error: new Error("Supabase session check timed out.") }), 6000)),
+        ]);
+
+        if (cancelled) return;
+        if (error) console.warn("PROOF session bootstrap:", error.message);
+
+        const sessionUser = data?.session?.user ?? null;
+        setUser(sessionUser);
+
+        if (sessionUser) {
+          const { data: profileData, error: profileError } = await supabase
+            .from("profiles")
+            .select("role")
+            .eq("id", sessionUser.id)
+            .maybeSingle();
+
+          if (profileError) console.warn("PROOF profile bootstrap:", profileError.message);
+          setUserRole(profileData?.role || "talent");
+        } else {
+          setUserRole(null);
+        }
+      } catch (error) {
+        console.warn("PROOF startup fallback:", error);
+        if (!cancelled) {
+          setUser(null);
+          setUserRole(null);
+        }
+      } finally {
+        if (!cancelled) setCheckingSession(false);
+      }
     }
 
-    supabase.auth.getSession().then(async ({ data }) => {
-      const sessionUser = data.session?.user ?? null;
-      setUser(sessionUser);
-      if (sessionUser) {
-        const { data: profileData } = await supabase.from("profiles").select("role").eq("id", sessionUser.id).maybeSingle();
-        setUserRole(profileData?.role || "talent");
-      } else {
-        setUserRole(null);
-      }
+    if (!supabase) {
       setCheckingSession(false);
-    });
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      const nextUser = session?.user ?? null;
-      setUser(nextUser);
-      if (!nextUser) {
-        setUserRole(null);
-        return;
+    } else {
+      boot();
+      try {
+        const subscription = supabase.auth.onAuthStateChange((_event, session) => {
+          const nextUser = session?.user ?? null;
+          setUser(nextUser);
+          if (!nextUser) {
+            setUserRole(null);
+            return;
+          }
+          window.setTimeout(async () => {
+            try {
+              const { data: profileData } = await supabase.from("profiles").select("role").eq("id", nextUser.id).maybeSingle();
+              if (!cancelled) setUserRole(profileData?.role || "talent");
+            } catch (error) {
+              console.warn("PROOF auth-state profile lookup:", error);
+            }
+          }, 0);
+        });
+        listener = subscription.data?.subscription ? subscription : null;
+      } catch (error) {
+        console.warn("PROOF auth listener:", error);
       }
-      window.setTimeout(async () => {
-        const { data: profileData } = await supabase.from("profiles").select("role").eq("id", nextUser.id).maybeSingle();
-        setUserRole(profileData?.role || "talent");
-      }, 0);
-    });
+    }
 
     return () => {
-      listener.subscription.unsubscribe();
+      cancelled = true;
+      listener?.data?.subscription?.unsubscribe?.();
       window.removeEventListener("popstate", onPopState);
     };
   }, []);
