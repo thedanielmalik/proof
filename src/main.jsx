@@ -356,6 +356,7 @@ function AuthScreen({ onAuthenticated, onExit }) {
 function Onboarding({ onExit, user }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [profile, setProfile] = useState({
     name: "",
     location: "",
@@ -451,7 +452,20 @@ function Onboarding({ onExit, user }) {
   const publish = async () => {
     if (!supabase || !user) return;
     setSaving(true);
+    setSaveError("");
     try {
+      let uploadedVideoUrl = null;
+      if (videoBlob) {
+        const extension = videoBlob.type.includes("mp4") ? "mp4" : "webm";
+        const path = user.id + "/proof-" + Date.now() + "." + extension;
+        const { error: uploadError } = await supabase.storage.from("proof-videos").upload(path, videoBlob, {
+          contentType: videoBlob.type,
+          upsert: false,
+        });
+        if (uploadError) throw uploadError;
+        uploadedVideoUrl = path;
+      }
+
       const { error: profileError } = await supabase.from("profiles").upsert({
         id: user.id,
         role: "talent",
@@ -460,6 +474,7 @@ function Onboarding({ onExit, user }) {
         headline: profile.headline || profile.role,
         bio: profile.bio,
         intent: profile.intent,
+        video_url: uploadedVideoUrl || profile.videoUrl || null,
         video_name: profile.videoName || null,
         published: true,
       });
@@ -522,7 +537,7 @@ function Onboarding({ onExit, user }) {
       window.localStorage.setItem("proof-published-demo", "true");
       setStepIndex(onboardingSteps.length - 1);
     } catch (err) {
-      setError(err.message || "Could not save your Proof.");
+      setSaveError(err.message || "Could not save your Proof.");
     } finally {
       setSaving(false);
     }
@@ -701,6 +716,7 @@ function Onboarding({ onExit, user }) {
                   ))}
                 </div>
               </div>
+              {saveError && <div className="error-banner">{saveError}</div>}
               <div className="publish-box">
                 <span className="eyebrow">READY?</span>
                 <h3>This is what an employer will see.</h3>
