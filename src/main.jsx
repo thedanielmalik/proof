@@ -67,7 +67,7 @@ function ProofCard() {
   return (
     <div className="proof-card" aria-label="Sample PROOF profile">
       <div className="proof-card__top">
-        <span className="eyebrow eyebrow--dark">PROOF PROFILE</span>
+        <span className="eyebrow eyebrow--dark">EXAMPLE PROOF</span>
         <span className="status-pill"><span className="status-dot" /> Open to work</span>
       </div>
 
@@ -207,7 +207,7 @@ function LandingPage({ onStart, onHire }) {
               <Button className="button--lime button--large" onClick={onHire}>Find talent <ArrowUpRight size={18} /></Button>
             </div>
             <div className="employer-list">
-              <div className="employer-list__head"><span>Talent you can understand</span><span>View all</span></div>
+              <div className="employer-list__head"><span>Example talent profiles</span><span>Preview</span></div>
               {[
                 ["MJ", "Michael James", "Product Designer", "UI/UX • Figma"],
                 ["TS", "Tolu Samuel", "Video Editor", "Content • Storytelling"],
@@ -247,7 +247,7 @@ function LandingPage({ onStart, onHire }) {
       <footer className="footer">
         <div><a className="brand" href="#">PROOF<span>.</span></a><p>People. Skills. Opportunities.</p></div>
         <div className="footer__links"><a href="#talent">For talent</a><a href="#employers">For employers</a><a href="#how">How it works</a><a href="#">Privacy</a><a href="#">Terms</a></div>
-        <span className="footer__copy">© 2026 PROOF — Demo</span>
+        <span className="footer__copy">© 2026 PROOF — Private beta</span>
       </footer>
     </div>
   );
