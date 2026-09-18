@@ -3227,12 +3227,12 @@ function App() {
       setUser(authenticatedUser);
       setUserRole(authenticatedRole || "talent");
 
-      if (authenticatedRole === "admin") {
-        navigate("/admin");
-      } else if (authenticatedRole === "employer") {
+      if (authenticatedRole === "employer") {
         navigate("/employer");
       } else if (profileData?.published && profileData?.public_slug) {
         navigate("/p/" + profileData.public_slug);
+      } else if (authenticatedRole === "admin") {
+        navigate("/admin");
       } else {
         navigate("/build");
       }
