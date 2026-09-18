@@ -481,8 +481,13 @@ function AuthScreen({ onAuthenticated, onExit }) {
         if (signUpError) throw signUpError;
 
         if (data.session) {
-          await supabase.from("profiles").update({ role, name }).eq("id", data.user.id);
-          onAuthenticated(data.user, role);
+          await supabase.from("profiles").update({ name }).eq("id", data.user.id);
+          const { data: profileData } = await supabase
+            .from("profiles")
+            .select("role,published,public_slug")
+            .eq("id", data.user.id)
+            .maybeSingle();
+          onAuthenticated(data.user, profileData?.role || role, profileData);
         } else {
           setMessage("Account created. Check your email to confirm your account, then sign in.");
           setMode("signin");
@@ -490,8 +495,15 @@ function AuthScreen({ onAuthenticated, onExit }) {
       } else {
         const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (signInError) throw signInError;
-        const { data: profileData } = await supabase.from("profiles").select("role").eq("id", data.user.id).maybeSingle();
-        onAuthenticated(data.user, profileData?.role || "talent");
+
+        const { data: profileData, error: profileError } = await supabase
+          .from("profiles")
+          .select("role,published,public_slug")
+          .eq("id", data.user.id)
+          .maybeSingle();
+
+        if (profileError) throw profileError;
+        onAuthenticated(data.user, profileData?.role || "talent", profileData);
       }
     } catch (err) {
       setError(err.message || "Something went wrong.");
@@ -3025,10 +3037,19 @@ function App() {
 
 
   if (route.type === "auth") {
-    return <AuthScreen onExit={goLanding} onAuthenticated={(authenticatedUser, authenticatedRole) => {
+    return <AuthScreen onExit={goLanding} onAuthenticated={(authenticatedUser, authenticatedRole, profileData) => {
       setUser(authenticatedUser);
       setUserRole(authenticatedRole || "talent");
-      navigate(authenticatedRole === "employer" ? "/employer" : "/build");
+
+      if (authenticatedRole === "employer") {
+        navigate("/employer");
+      } else if (profileData?.published && profileData?.public_slug) {
+        navigate("/p/" + profileData.public_slug);
+      } else if (authenticatedRole === "admin") {
+        navigate("/admin");
+      } else {
+        navigate("/build");
+      }
     }} />;
   }
 
