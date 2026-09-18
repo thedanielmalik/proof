@@ -1192,9 +1192,16 @@ function JobDetails({ jobId, user, userRole, onBack, onAuth, onApplications, onE
                 <span>Status: {application.status}</span>
                 <div className="apply-success__actions"><Button className="button--outline" onClick={() => navigate("/messages?application=" + jobId)}>Message employer <MessageCircle size={14} /></Button><Button className="button--outline" onClick={onApplications}>View my applications</Button></div>
               </div>
+            ) : userRole === "employer" ? (
+              <div className="apply-success">
+                <Building2 size={20} />
+                <strong>Employer account</strong>
+                <span>Employer accounts can post and manage roles, but cannot apply as candidates.</span>
+                <Button className="button--dark" onClick={onEmployer}>Open employer workspace <ArrowRight size={15} /></Button>
+              </div>
             ) : (
               <>
-                <textarea className="apply-message" rows="5" value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Optional: add a short message to the employer." />
+                <textarea className="apply-message" rows="5" maxLength="1500" value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Optional: add a short message to the employer." />
                 {error && <div className="error-banner">{error}</div>}
                 <Button className="button--lime button--large apply-button" onClick={apply} disabled={applying}>
                   {user ? (applying ? "Sending..." : "Apply with my Proof") : "Create my Proof to apply"} <ArrowUpRight size={18} />
