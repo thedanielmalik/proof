@@ -123,6 +123,7 @@ function LandingPage({ onStart, onHire }) {
           <button onClick={() => scrollTo("talent")}>For talent</button>
           <button onClick={() => scrollTo("employers")}>For employers</button>
           <button onClick={() => navigate("/jobs")}>Jobs</button>
+          <button onClick={() => navigate("/founding-100")}>Founding 100</button>
         </nav>
         <div className="nav__actions">
           <button className="button button--ghost" onClick={onStart}>Sign in</button>
@@ -239,6 +240,7 @@ function LandingPage({ onStart, onHire }) {
             <div className="cta__buttons">
               <Button className="button--dark button--large" onClick={onStart}>Build my Proof <ArrowUpRight size={18} /></Button>
               <button className="button button--outline button--large" onClick={onHire}>I'm hiring talent</button>
+              <button className="button button--ghost button--large" onClick={() => navigate("/founding-100")}>Join the Founding 100 <ArrowUpRight size={18} /></button>
             </div>
           </div>
         </section>
@@ -249,6 +251,178 @@ function LandingPage({ onStart, onHire }) {
         <div className="footer__links"><a href="#talent">For talent</a><a href="#employers">For employers</a><a href="#how">How it works</a><a href="#">Privacy</a><a href="#">Terms</a></div>
         <span className="footer__copy">© 2026 PROOF — Private beta</span>
       </footer>
+    </div>
+  );
+}
+
+function Founding100Page({ onBack, onAuth }) {
+  const [role, setRole] = useState("talent");
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [location, setLocation] = useState("");
+  const [focus, setFocus] = useState("");
+  const [company, setCompany] = useState("");
+  const [notes, setNotes] = useState("");
+  const [source, setSource] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const utmSource = params.get("utm_source");
+    const utmCampaign = params.get("utm_campaign");
+    const referrer = document.referrer;
+    setSource([
+      utmSource && "utm_source=" + utmSource,
+      utmCampaign && "utm_campaign=" + utmCampaign,
+      referrer && "referrer=" + referrer
+    ].filter(Boolean).join("&"));
+  }, []);
+
+  const submit = async (event) => {
+    event.preventDefault();
+    if (!supabase) {
+      setError("PROOF is not connected to its database yet.");
+      return;
+    }
+
+    const cleanName = fullName.trim();
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanLocation = location.trim();
+    const cleanFocus = focus.trim();
+    const cleanCompany = company.trim();
+    const cleanNotes = notes.trim();
+
+    if (cleanName.length < 2 || cleanEmail.length < 5 || !cleanFocus || (role === "employer" && !cleanCompany)) {
+      setError(role === "talent"
+        ? "Add your name, email and primary area of work."
+        : "Add your name, email, company and what you’re hiring for.");
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+
+    const { error: insertError } = await supabase.from("founding_100_signups").insert({
+      full_name: cleanName,
+      email: cleanEmail,
+      role,
+      location: cleanLocation || null,
+      focus: cleanFocus,
+      company: cleanCompany || null,
+      notes: cleanNotes || null,
+      source: source || null,
+    });
+
+    if (insertError) {
+      setSubmitting(false);
+      if (insertError.code === "23505") {
+        window.localStorage.setItem("proof-beta-role", role);
+        window.localStorage.setItem("proof-beta-email", cleanEmail);
+        setError("That email is already on the Founding 100 list.");
+        setSubmitted(true);
+        return;
+      }
+      setError(insertError.message || "We couldn't save your spot. Please try again.");
+      return;
+    }
+
+    window.localStorage.setItem("proof-beta-role", role);
+    window.localStorage.setItem("proof-beta-email", cleanEmail);
+    setSubmitting(false);
+    setSubmitted(true);
+  };
+
+  const continueToProduct = () => {
+    window.localStorage.setItem("proof-beta-role", role);
+    if (email.trim()) window.localStorage.setItem("proof-beta-email", email.trim().toLowerCase());
+    onAuth();
+  };
+
+  if (submitted) {
+    return (
+      <div className="beta-shell">
+        <header className="onboarding-nav beta-nav">
+          <button className="back-home" onClick={onBack}><ArrowLeft size={16} /> Back</button>
+          <a className="brand" href="#" onClick={(e) => { e.preventDefault(); onBack(); }}>PROOF<span>.</span></a>
+          <span className="save-state">FOUNDING 100</span>
+        </header>
+        <main className="beta-success-page">
+          <div className="beta-success-card">
+            <div className="beta-success-mark"><Check size={28} /></div>
+            <span className="eyebrow">YOU’RE ON THE LIST</span>
+            <h1>Welcome to the first 100.</h1>
+            <p>{role === "talent"
+              ? "Your place in the Founding 100 is recorded. Now build the Proof people will discover."
+              : "Your place in the Founding 100 is recorded. Now set up your hiring workspace and bring your first real role into PROOF."}</p>
+            <div className="beta-success-actions">
+              <Button className="button--dark button--large" onClick={continueToProduct}>
+                {role === "talent" ? "Build my Proof" : "Create hiring account"} <ArrowUpRight size={18} />
+              </Button>
+              <button className="button button--outline button--large" onClick={onBack}>Back to PROOF</button>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  return (
+    <div className="beta-shell">
+      <header className="onboarding-nav beta-nav">
+        <button className="back-home" onClick={onBack}><ArrowLeft size={16} /> Back</button>
+        <a className="brand" href="#" onClick={(e) => { e.preventDefault(); onBack(); }}>PROOF<span>.</span></a>
+        <span className="save-state">FOUNDING 100</span>
+      </header>
+
+      <main className="beta-page">
+        <section className="beta-hero">
+          <div className="beta-hero__copy">
+            <span className="eyebrow">FOUNDING 100 · PRIVATE BETA</span>
+            <h1>Be among the first people to put proof before paper.</h1>
+            <p>We’re opening PROOF to a small first group of Nigerian talent and employers. Join early, build your profile or hiring workspace, and help shape what comes next.</p>
+            <div className="beta-points">
+              <div><span>01</span><strong>Build</strong><p>Create a profile built around skills, work and Proof.</p></div>
+              <div><span>02</span><strong>Discover</strong><p>Get in front of people looking for what you can do.</p></div>
+              <div><span>03</span><strong>Shape</strong><p>Share feedback while the product is still being shaped.</p></div>
+            </div>
+          </div>
+
+          <form className="beta-form" onSubmit={submit}>
+            <div className="beta-form__top">
+              <span className="eyebrow">JOIN THE BETA</span>
+              <h2>Save my spot.</h2>
+              <p>Tell us a little about who you are so we can put you in the right starting lane.</p>
+            </div>
+
+            <div className="choice-grid beta-role-grid">
+              <button type="button" className={role === "talent" ? "choice is-selected" : "choice"} onClick={() => setRole("talent")}>I’m talent <span>Show what I can do</span></button>
+              <button type="button" className={role === "employer" ? "choice is-selected" : "choice"} onClick={() => setRole("employer")}>I’m hiring <span>Find people who can do it</span></button>
+            </div>
+
+            <div className="form-grid">
+              <label>Full name<input required maxLength="120" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Your name" /></label>
+              <label>Email<input required type="email" maxLength="254" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" /></label>
+              <label>Location<input maxLength="120" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Lagos, Nigeria" /></label>
+              {role === "talent" ? (
+                <label>What do you do?<input required maxLength="120" value={focus} onChange={(e) => setFocus(e.target.value)} placeholder="e.g. Digital Marketing" /></label>
+              ) : (
+                <label>What are you hiring for?<input required maxLength="120" value={focus} onChange={(e) => setFocus(e.target.value)} placeholder="e.g. Product Design" /></label>
+              )}
+              {role === "employer" && <label className="full">Company<input required maxLength="160" value={company} onChange={(e) => setCompany(e.target.value)} placeholder="e.g. Wawo Hub" /></label>}
+              <label className="full">{role === "talent" ? "Anything else we should know?" : "What kind of talent are you looking for?"}<textarea rows="4" maxLength="1200" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={role === "talent" ? "Career switcher, self-taught, creator, specialist, etc." : "A short description of the kind of work you need help with."} /></label>
+            </div>
+
+            {error && <div className="error-banner">{error}</div>}
+
+            <Button className="button--lime button--large beta-submit" disabled={submitting}>
+              {submitting ? "Saving your spot..." : "Join the Founding 100"} <ArrowUpRight size={18} />
+            </Button>
+            <p className="beta-form-note">Private beta. Your details are used to contact you about PROOF and the beta experience.</p>
+          </form>
+        </section>
+      </main>
     </div>
   );
 }
@@ -280,9 +454,9 @@ function ProgressBar({ stepIndex }) {
 function AuthScreen({ onAuthenticated, onExit }) {
   const [mode, setMode] = useState("signup");
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => window.localStorage.getItem("proof-beta-email") || "");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("talent");
+  const [role, setRole] = useState(() => window.localStorage.getItem("proof-beta-role") || "talent");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -2712,6 +2886,7 @@ function App() {
     if (path === "/employer/jobs") return { type: "employerJobs" };
     if (path === "/employer") return { type: "employer" };
     if (path === "/messages") return { type: "messages" };
+    if (path === "/founding-100") return { type: "founding100" };
     if (path === "/candidate/applications") return { type: "applications" };
     if (new URLSearchParams(window.location.search).get("auth") === "1") return { type: "auth" };
     return { type: "landing" };
@@ -2812,6 +2987,10 @@ function App() {
 
   if (route.type === "public") {
     return <PublicProfile slug={route.slug} onBack={goLanding} />;
+  }
+
+  if (route.type === "founding100") {
+    return <Founding100Page onBack={goLanding} onAuth={goAuth} />;
   }
 
   if (route.type === "auth") {
