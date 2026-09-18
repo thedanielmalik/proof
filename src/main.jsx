@@ -17,6 +17,13 @@ import {
   CalendarDays,
   ArrowRight,
   SlidersHorizontal,
+  Building2,
+  Plus,
+  UsersRound,
+  Eye,
+  Pencil,
+  Globe2,
+  Upload,
 
 } from "lucide-react";
 import "./styles.css";
@@ -103,7 +110,7 @@ function ProofCard() {
   );
 }
 
-function LandingPage({ onStart }) {
+function LandingPage({ onStart, onHire }) {
   const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
 
   return (
@@ -129,7 +136,7 @@ function LandingPage({ onStart }) {
             <p className="hero__lead">Your CV tells employers where you've been. Your Proof shows them what you can do.</p>
             <div className="hero__buttons">
               <Button className="button--lime button--large" onClick={onStart}>Build my Proof <ArrowUpRight size={18} /></Button>
-              <Button className="button--outline button--large" onClick={() => scrollTo("employers")}>I'm hiring talent</Button>
+              <Button className="button--outline button--large" onClick={onHire}>I'm hiring talent</Button>
             </div>
             <div className="hero__trust">
               <div className="avatar-stack" aria-hidden="true"><span>AO</span><span>TM</span><span>KA</span><span>+</span></div>
@@ -195,7 +202,7 @@ function LandingPage({ onStart }) {
               <span className="eyebrow eyebrow--light">FOR EMPLOYERS</span>
               <h2>See what candidates can<br /><span>actually do.</span></h2>
               <p>Discover talent through skills, experience, work and Proof — not just a stack of CVs.</p>
-              <Button className="button--lime button--large" onClick={() => scrollTo("cta")}>Find talent <ArrowUpRight size={18} /></Button>
+              <Button className="button--lime button--large" onClick={onHire}>Find talent <ArrowUpRight size={18} /></Button>
             </div>
             <div className="employer-list">
               <div className="employer-list__head"><span>Talent you can understand</span><span>View all</span></div>
@@ -229,7 +236,7 @@ function LandingPage({ onStart }) {
             <p>Don't just put it on your CV. Prove it.</p>
             <div className="cta__buttons">
               <Button className="button--dark button--large" onClick={onStart}>Build my Proof <ArrowUpRight size={18} /></Button>
-              <button className="button button--outline button--large" onClick={() => scrollTo("employers")}>I'm hiring talent</button>
+              <button className="button button--outline button--large" onClick={onHire}>I'm hiring talent</button>
             </div>
           </div>
         </section>
@@ -297,7 +304,7 @@ function AuthScreen({ onAuthenticated, onExit }) {
 
         if (data.session) {
           await supabase.from("profiles").update({ role, name }).eq("id", data.user.id);
-          onAuthenticated(data.user);
+          onAuthenticated(data.user, role);
         } else {
           setMessage("Account created. Check your email to confirm your account, then sign in.");
           setMode("signin");
@@ -305,7 +312,8 @@ function AuthScreen({ onAuthenticated, onExit }) {
       } else {
         const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (signInError) throw signInError;
-        onAuthenticated(data.user);
+        const { data: profileData } = await supabase.from("profiles").select("role").eq("id", data.user.id).maybeSingle();
+        onAuthenticated(data.user, profileData?.role || "talent");
       }
     } catch (err) {
       setError(err.message || "Something went wrong.");
@@ -904,7 +912,7 @@ function JobCard({ job, onOpen }) {
         <span className="job-card__date">{new Date(job.created_at).toLocaleDateString("en-NG", { day: "numeric", month: "short" })}</span>
       </div>
       <div className="job-card__identity">
-        <div className="company-mark">{(job.companies?.name || "P").slice(0, 1).toUpperCase()}</div>
+        <div className="company-mark">{job.companies?.logo_url ? <img src={job.companies.logo_url} alt="" /> : (job.companies?.name || "P").slice(0, 1).toUpperCase()}</div>
         <div>
           <span className="job-company">{job.companies?.name || "Company"}</span>
           <h2>{job.title}</h2>
@@ -1137,7 +1145,7 @@ function JobDetails({ jobId, user, onBack, onAuth, onApplications }) {
       <main className="job-details-page">
         <div className="job-details__main">
           <div className="job-company-head">
-            <div className="company-mark company-mark--large">{(job.companies?.name || "P").slice(0, 1).toUpperCase()}</div>
+            <div className="company-mark company-mark--large">{job.companies?.logo_url ? <img src={job.companies.logo_url} alt="" /> : (job.companies?.name || "P").slice(0, 1).toUpperCase()}</div>
             <div><span>{job.companies?.name || "Company"}{job.is_demo ? " · Demo opportunity" : ""}</span><p>{job.companies?.industry || job.industry || "Company"}</p></div>
           </div>
 
@@ -1149,6 +1157,10 @@ function JobDetails({ jobId, user, onBack, onAuth, onApplications }) {
           </div>
 
           <div className="job-detail-section"><span className="eyebrow">ABOUT THE ROLE</span><p>{job.description}</p></div>
+
+          {job.responsibilities && <div className="job-detail-section"><span className="eyebrow">RESPONSIBILITIES</span><p className="job-detail-pre">{job.responsibilities}</p></div>}
+
+          {job.requirements && <div className="job-detail-section"><span className="eyebrow">REQUIREMENTS</span><p className="job-detail-pre">{job.requirements}</p></div>}
 
           <div className="job-detail-section"><span className="eyebrow">SKILLS</span><div className="selected-skills">{(job.skills || []).map((skill) => <span className="skill-pill static" key={skill}>{skill}</span>)}</div></div>
 
@@ -1263,6 +1275,859 @@ function ApplicationsPage({ user, onBack, onJobs, onAuth }) {
                 <ArrowUpRight size={17} />
               </button>
             ))}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
+
+function EmployerHeader({ onBack, onDashboard, onJobs }) {
+  return (
+    <header className="employer-nav">
+      <a className="brand" href="#" onClick={(e) => { e.preventDefault(); onBack(); }}>PROOF<span>.</span></a>
+      <nav className="employer-nav__links" aria-label="Employer navigation">
+        <button className="employer-nav__active" onClick={onDashboard}>Dashboard</button>
+        <button onClick={onJobs}>Jobs</button>
+      </nav>
+      <div className="employer-nav__actions">
+        <Button className="button--dark" onClick={() => navigate("/employer/jobs/new")}>Post a job <Plus size={16} /></Button>
+      </div>
+    </header>
+  );
+}
+
+function EmployerOnboarding({ user, onBack, onComplete }) {
+  const [company, setCompany] = useState({
+    name: "",
+    industry: "",
+    website: "",
+    location: "",
+    size: "",
+    description: "",
+    logo_url: "",
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [logoName, setLogoName] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (!supabase || !user) { setLoading(false); return; }
+      const { data, error: queryError } = await supabase
+        .from("companies")
+        .select("*")
+        .eq("owner_id", user.id)
+        .eq("is_demo", false)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (cancelled) return;
+      if (queryError) setError(queryError.message || "Could not load your company profile.");
+      if (data) {
+        setCompany({
+          name: data.name || "",
+          industry: data.industry || "",
+          website: data.website || "",
+          location: data.location || "",
+          size: data.size || "",
+          description: data.description || "",
+          logo_url: data.logo_url || "",
+        });
+      }
+      setLoading(false);
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [user]);
+
+  const update = (key, value) => setCompany((current) => ({ ...current, [key]: value }));
+
+  const uploadLogo = async (file) => {
+    if (!file || !supabase || !user) return;
+    setError("");
+    const allowed = ["image/png", "image/jpeg", "image/webp"];
+    if (!allowed.includes(file.type)) {
+      setError("Please choose a PNG, JPG or WebP logo.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Logo must be 5MB or smaller.");
+      return;
+    }
+
+    try {
+      const extension = file.type.split("/")[1].replace("jpeg", "jpg");
+      const path = user.id + "/company-" + Date.now() + "." + extension;
+      const { error: uploadError } = await supabase.storage.from("avatars").upload(path, file, {
+        contentType: file.type,
+        cacheControl: "3600",
+        upsert: false,
+      });
+      if (uploadError) throw uploadError;
+      const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+      update("logo_url", data.publicUrl);
+      setLogoName(file.name);
+    } catch (err) {
+      setError(err.message || "Could not upload the logo.");
+    }
+  };
+
+  const save = async (event) => {
+    event.preventDefault();
+    if (!supabase || !user) return;
+    if (!company.name.trim() || !company.industry.trim() || !company.location.trim()) {
+      setError("Company name, industry and location are required.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    try {
+      const payload = {
+        owner_id: user.id,
+        name: company.name.trim(),
+        industry: company.industry.trim(),
+        website: company.website.trim() || null,
+        location: company.location.trim(),
+        size: company.size.trim() || null,
+        description: company.description.trim(),
+        logo_url: company.logo_url || null,
+        is_demo: false,
+      };
+
+      const { data: existing } = await supabase
+        .from("companies")
+        .select("id")
+        .eq("owner_id", user.id)
+        .eq("is_demo", false)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      const result = existing?.id
+        ? await supabase.from("companies").update(payload).eq("id", existing.id).select("*").single()
+        : await supabase.from("companies").insert(payload).select("*").single();
+
+      if (result.error) throw result.error;
+      onComplete(result.data);
+    } catch (err) {
+      setError(err.message || "Could not save your company profile.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <div className="jobs-state">Loading your company setup…</div>;
+
+  return (
+    <div className="jobs-shell">
+      <header className="jobs-nav">
+        <button className="jobs-back" onClick={onBack}><ArrowLeft size={16} /> Back</button>
+        <a className="brand" href="#" onClick={(e) => { e.preventDefault(); onBack(); }}>PROOF<span>.</span></a>
+        <span className="jobs-nav__label">EMPLOYER SETUP</span>
+      </header>
+
+      <main className="employer-form-page">
+        <div className="employer-form-intro">
+          <span className="eyebrow">YOUR COMPANY</span>
+          <h1>Give talent a reason to understand your company.</h1>
+          <p>This becomes the company identity candidates see beside every role you publish on PROOF.</p>
+        </div>
+
+        <form className="employer-form-card" onSubmit={save}>
+          <div className="employer-logo-row">
+            <div className="employer-logo-preview">
+              {company.logo_url ? <img src={company.logo_url} alt="" /> : <Building2 size={22} />}
+            </div>
+            <div>
+              <strong>Company logo</strong>
+              <span>{logoName || "Optional · PNG, JPG or WebP · max 5MB"}</span>
+            </div>
+            <label className="button button--outline button--small">
+              <Upload size={14} /> Upload
+              <input className="hidden-file" type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => uploadLogo(e.target.files?.[0])} />
+            </label>
+          </div>
+
+          <div className="form-grid">
+            <label>Company name<input required value={company.name} onChange={(e) => update("name", e.target.value)} placeholder="e.g. Wawo Hub" /></label>
+            <label>Industry<input required value={company.industry} onChange={(e) => update("industry", e.target.value)} placeholder="e.g. Marketing & Advertising" /></label>
+            <label>Website<input type="url" value={company.website} onChange={(e) => update("website", e.target.value)} placeholder="https://yourcompany.com" /></label>
+            <label>Location<input required value={company.location} onChange={(e) => update("location", e.target.value)} placeholder="Lagos, Nigeria" /></label>
+            <label>Company size
+              <select value={company.size} onChange={(e) => update("size", e.target.value)}>
+                <option value="">Select size</option>
+                <option>1–10</option>
+                <option>11–50</option>
+                <option>51–200</option>
+                <option>201–500</option>
+                <option>500+</option>
+              </select>
+            </label>
+            <label className="full">About the company<textarea rows="6" value={company.description} onChange={(e) => update("description", e.target.value)} placeholder="What does your company do? What should a great candidate know?"></textarea></label>
+          </div>
+
+          {error && <div className="error-banner">{error}</div>}
+          <div className="employer-form-actions">
+            <p>Keep it clear. Candidates should understand who they are applying to.</p>
+            <Button className="button--lime button--large" disabled={saving}>{saving ? "Saving..." : "Save company profile"} <ArrowUpRight size={18} /></Button>
+          </div>
+        </form>
+      </main>
+    </div>
+  );
+}
+
+function EmployerDashboard({ user, onBack, onJobs }) {
+  const [company, setCompany] = useState(null);
+  const [jobs, setJobs] = useState([]);
+  const [applications, setApplications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const load = async () => {
+    if (!supabase || !user) { setLoading(false); return; }
+    setLoading(true);
+    const companyResult = await supabase
+      .from("companies")
+      .select("*")
+      .eq("owner_id", user.id)
+      .eq("is_demo", false)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (companyResult.error) {
+      setError(companyResult.error.message || "Could not load your company.");
+      setLoading(false);
+      return;
+    }
+
+    if (!companyResult.data) {
+      setLoading(false);
+      return;
+    }
+
+    const companyData = companyResult.data;
+    const jobsResult = await supabase
+      .from("jobs")
+      .select("*")
+      .eq("company_id", companyData.id)
+      .order("created_at", { ascending: false });
+
+    if (jobsResult.error) {
+      setError(jobsResult.error.message || "Could not load your jobs.");
+      setLoading(false);
+      return;
+    }
+
+    const jobsData = jobsResult.data || [];
+    const jobIds = jobsData.map((job) => job.id);
+    let applicationsData = [];
+    if (jobIds.length) {
+      const result = await supabase
+        .from("applications")
+        .select("id, job_id, status")
+        .in("job_id", jobIds);
+      if (result.error) {
+        setError(result.error.message || "Could not load your applicants.");
+        setLoading(false);
+        return;
+      }
+      applicationsData = result.data || [];
+    }
+
+    setCompany(companyData);
+    setJobs(jobsData);
+    setApplications(applicationsData);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, [user]);
+
+  const published = jobs.filter((job) => job.published);
+  const shortlisted = applications.filter((app) => app.status === "shortlisted");
+  const interviews = applications.filter((app) => app.status === "interview");
+
+  if (loading) return <div className="jobs-state">Loading your employer dashboard…</div>;
+
+  if (!company) {
+    return (
+      <EmployerOnboarding user={user} onBack={onBack} onComplete={() => load()} />
+    );
+  }
+
+  return (
+    <div className="jobs-shell">
+      <EmployerHeader onBack={onBack} onDashboard={() => navigate("/employer")} onJobs={onJobs} />
+
+      <main className="employer-page">
+        <section className="employer-hero">
+          <div>
+            <span className="eyebrow">EMPLOYER DASHBOARD</span>
+            <div className="employer-company-line">
+              <div className="employer-company-mark">
+                {company.logo_url ? <img src={company.logo_url} alt="" /> : <Building2 size={22} />}
+              </div>
+              <div>
+                <h1>{company.name}</h1>
+                <p>{company.industry} <span>·</span> {company.location}</p>
+              </div>
+            </div>
+            <p className="employer-hero__copy">Post roles, review applicants and see candidates through the evidence that matters.</p>
+          </div>
+          <div className="employer-hero__actions">
+            <Button className="button--lime button--large" onClick={() => navigate("/employer/jobs/new")}>Post a job <Plus size={18} /></Button>
+            <button className="text-link" onClick={() => navigate("/employer/onboarding")}>Edit company <Pencil size={15} /></button>
+          </div>
+        </section>
+
+        <section className="employer-stats">
+          <div className="employer-stat"><span>ACTIVE JOBS</span><strong>{published.length}</strong><small>published roles</small></div>
+          <div className="employer-stat"><span>APPLICANTS</span><strong>{applications.length}</strong><small>across your roles</small></div>
+          <div className="employer-stat"><span>SHORTLISTED</span><strong>{shortlisted.length}</strong><small>ready for review</small></div>
+          <div className="employer-stat"><span>INTERVIEWS</span><strong>{interviews.length}</strong><small>currently in process</small></div>
+        </section>
+
+        <section className="employer-section-head">
+          <div><span className="eyebrow">YOUR ROLES</span><h2>Jobs that are live.</h2></div>
+          <button className="text-link" onClick={onJobs}>Manage all jobs <ArrowRight size={16} /></button>
+        </section>
+
+        {jobs.length === 0 ? (
+          <div className="employer-empty">
+            <div><span className="eyebrow">FIRST ROLE</span><h2>Your first opportunity starts here.</h2><p>Publish a role and let candidates apply with the Proof they have already built.</p></div>
+            <Button className="button--dark button--large" onClick={() => navigate("/employer/jobs/new")}>Post your first job <Plus size={18} /></Button>
+          </div>
+        ) : (
+          <div className="employer-jobs-grid">
+            {jobs.slice(0, 6).map((job) => {
+              const applicantCount = applications.filter((app) => app.job_id === job.id).length;
+              return (
+                <article className="employer-job-card" key={job.id}>
+                  <div className="employer-job-card__top">
+                    <span className={job.published ? "employer-published" : "employer-draft"}>{job.published ? "Published" : "Draft"}</span>
+                    <span>{applicantCount} applicants</span>
+                  </div>
+                  <h3>{job.title}</h3>
+                  <p>{job.location || "Flexible location"} <span>·</span> {job.work_type || "Work arrangement"}</p>
+                  <div className="employer-job-card__footer">
+                    <button className="text-link" onClick={() => navigate("/employer/jobs/" + job.id + "/applicants")}>Review applicants <ArrowUpRight size={15} /></button>
+                    <button className="icon-button" title="Edit job" aria-label="Edit job" onClick={() => navigate("/employer/jobs/new?edit=" + job.id)}><Pencil size={15} /></button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function EmployerJobsPage({ user, onBack }) {
+  const [company, setCompany] = useState(null);
+  const [jobs, setJobs] = useState([]);
+  const [applications, setApplications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const load = async () => {
+    if (!supabase || !user) { setLoading(false); return; }
+    const companyResult = await supabase
+      .from("companies")
+      .select("*")
+      .eq("owner_id", user.id)
+      .eq("is_demo", false)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (companyResult.error) {
+      setError(companyResult.error.message);
+      setLoading(false);
+      return;
+    }
+    setCompany(companyResult.data || null);
+    if (!companyResult.data) { setLoading(false); return; }
+
+    const jobsResult = await supabase
+      .from("jobs")
+      .select("*")
+      .eq("company_id", companyResult.data.id)
+      .order("created_at", { ascending: false });
+    if (jobsResult.error) {
+      setError(jobsResult.error.message);
+      setLoading(false);
+      return;
+    }
+
+    const jobIds = (jobsResult.data || []).map((job) => job.id);
+    let apps = [];
+    if (jobIds.length) {
+      const appResult = await supabase.from("applications").select("id, job_id, status").in("job_id", jobIds);
+      if (appResult.error) {
+        setError(appResult.error.message);
+        setLoading(false);
+        return;
+      }
+      apps = appResult.data || [];
+    }
+
+    setJobs(jobsResult.data || []);
+    setApplications(apps);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, [user]);
+
+  const togglePublished = async (job) => {
+    if (!supabase) return;
+    const nextPublished = !job.published;
+    setError("");
+    const { error: updateError } = await supabase
+      .from("jobs")
+      .update({ published: nextPublished })
+      .eq("id", job.id);
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+    setJobs((current) => current.map((item) => item.id === job.id ? { ...item, published: nextPublished } : item));
+  };
+
+  if (loading) return <div className="jobs-state">Loading your jobs…</div>;
+
+  if (!company) return <EmployerOnboarding user={user} onBack={onBack} onComplete={() => load()} />;
+
+  return (
+    <div className="jobs-shell">
+      <EmployerHeader onBack={onBack} onDashboard={() => navigate("/employer")} onJobs={() => navigate("/employer/jobs")} />
+      <main className="employer-page">
+        <section className="employer-section-head employer-section-head--first">
+          <div><span className="eyebrow">YOUR JOBS</span><h1>Manage every role.</h1><p>Publish, pause and review the opportunities your company has put on PROOF.</p></div>
+          <Button className="button--lime button--large" onClick={() => navigate("/employer/jobs/new")}>Post a job <Plus size={18} /></Button>
+        </section>
+
+        {error && <div className="error-banner">{error}</div>}
+
+        {jobs.length === 0 ? (
+          <div className="employer-empty"><div><span className="eyebrow">NO ROLES YET</span><h2>Put your first opportunity in front of skilled people.</h2><p>You can keep a role as a draft or publish it immediately.</p></div><Button className="button--dark button--large" onClick={() => navigate("/employer/jobs/new")}>Post your first job <Plus size={18} /></Button></div>
+        ) : (
+          <div className="employer-role-list">
+            {jobs.map((job) => {
+              const count = applications.filter((app) => app.job_id === job.id).length;
+              return (
+                <article className="employer-role-row" key={job.id}>
+                  <div className="employer-role-row__identity">
+                    <span className={job.published ? "employer-published" : "employer-draft"}>{job.published ? "Published" : "Draft"}</span>
+                    <div><h2>{job.title}</h2><p>{job.location || "Flexible"} <span>·</span> {job.work_type || "Flexible"} <span>·</span> {job.employment_type || "Role"}</p></div>
+                  </div>
+                  <div className="employer-role-row__count"><strong>{count}</strong><span>applicants</span></div>
+                  <div className="employer-role-row__actions">
+                    <button className="button button--outline button--small" onClick={() => navigate("/employer/jobs/" + job.id + "/applicants")}><UsersRound size={14} /> Applicants</button>
+                    <button className="button button--ghost button--small" onClick={() => togglePublished(job)}>{job.published ? "Pause role" : "Publish role"}</button>
+                    <button className="icon-button" title="Edit job" aria-label="Edit job" onClick={() => navigate("/employer/jobs/new?edit=" + job.id)}><Pencil size={15} /></button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function EmployerJobForm({ user, onBack }) {
+  const [company, setCompany] = useState(null);
+  const [job, setJob] = useState({
+    title: "",
+    description: "",
+    responsibilities: "",
+    requirements: "",
+    skillsText: "",
+    salaryMin: "",
+    salaryMax: "",
+    location: "",
+    workType: "On-site",
+    employmentType: "Full-time",
+    experienceLevel: "Mid-level",
+    industry: "",
+    published: true,
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [savedAs, setSavedAs] = useState("");
+
+  const editId = new URLSearchParams(window.location.search).get("edit");
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (!supabase || !user) { setLoading(false); return; }
+      const companyResult = await supabase
+        .from("companies")
+        .select("*")
+        .eq("owner_id", user.id)
+        .eq("is_demo", false)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (cancelled) return;
+      if (companyResult.error) {
+        setError(companyResult.error.message);
+        setLoading(false);
+        return;
+      }
+
+      if (!companyResult.data) {
+        setLoading(false);
+        return;
+      }
+
+      setCompany(companyResult.data);
+      setJob((current) => ({
+        ...current,
+        location: current.location || companyResult.data.location || "",
+        industry: current.industry || companyResult.data.industry || "",
+      }));
+
+      if (editId) {
+        const jobResult = await supabase
+          .from("jobs")
+          .select("*")
+          .eq("id", editId)
+          .eq("company_id", companyResult.data.id)
+          .maybeSingle();
+        if (cancelled) return;
+        if (jobResult.error) setError(jobResult.error.message);
+        if (jobResult.data) {
+          const data = jobResult.data;
+          setJob({
+            title: data.title || "",
+            description: data.description || "",
+            responsibilities: data.responsibilities || "",
+            requirements: data.requirements || "",
+            skillsText: (data.skills || []).join(", "),
+            salaryMin: data.salary_min ?? "",
+            salaryMax: data.salary_max ?? "",
+            location: data.location || companyResult.data.location || "",
+            workType: data.work_type || "On-site",
+            employmentType: data.employment_type || "Full-time",
+            experienceLevel: data.experience_level || "Mid-level",
+            industry: data.industry || companyResult.data.industry || "",
+            published: Boolean(data.published),
+          });
+        }
+      }
+      setLoading(false);
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [user, editId]);
+
+  const update = (key, value) => setJob((current) => ({ ...current, [key]: value }));
+
+  const save = async (event) => {
+    event.preventDefault();
+    if (!supabase || !company) return;
+    if (!job.title.trim() || !job.description.trim()) {
+      setError("Job title and role description are required.");
+      return;
+    }
+
+    setSaving(true);
+    setSavedAs("");
+    setError("");
+
+    const skills = job.skillsText.split(",").map((item) => item.trim()).filter(Boolean).slice(0, 12);
+    const payload = {
+      company_id: company.id,
+      title: job.title.trim(),
+      description: job.description.trim(),
+      responsibilities: job.responsibilities.trim(),
+      requirements: job.requirements.trim(),
+      skills,
+      salary_min: job.salaryMin === "" ? null : Number(job.salaryMin),
+      salary_max: job.salaryMax === "" ? null : Number(job.salaryMax),
+      currency: "NGN",
+      location: job.location.trim() || null,
+      work_type: job.workType,
+      employment_type: job.employmentType,
+      experience_level: job.experienceLevel,
+      industry: job.industry.trim() || company.industry || null,
+      published: Boolean(job.published),
+      is_demo: false,
+    };
+
+    try {
+      let result;
+      if (editId) {
+        result = await supabase.from("jobs").update(payload).eq("id", editId).eq("company_id", company.id).select("*").single();
+      } else {
+        result = await supabase.from("jobs").insert(payload).select("*").single();
+      }
+      if (result.error) throw result.error;
+      setSavedAs(payload.published ? "published" : "draft");
+      window.setTimeout(() => navigate("/employer/jobs"), 350);
+    } catch (err) {
+      setError(err.message || "Could not save this job.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <div className="jobs-state">Loading job editor…</div>;
+
+  if (!company) return <EmployerOnboarding user={user} onBack={onBack} onComplete={() => navigate("/employer/jobs/new")} />;
+
+  return (
+    <div className="jobs-shell">
+      <header className="jobs-nav">
+        <button className="jobs-back" onClick={() => navigate("/employer/jobs")}><ArrowLeft size={16} /> Your jobs</button>
+        <a className="brand" href="#" onClick={(e) => { e.preventDefault(); onBack(); }}>PROOF<span>.</span></a>
+        <span className="jobs-nav__label">{editId ? "EDIT ROLE" : "NEW ROLE"}</span>
+      </header>
+
+      <main className="employer-form-page employer-form-page--job">
+        <div className="employer-form-intro">
+          <span className="eyebrow">{editId ? "EDIT ROLE" : "POST A JOB"}</span>
+          <h1>{editId ? "Make the opportunity clear." : "Give great people a role worth proving themselves for."}</h1>
+          <p>Keep the brief specific. Strong candidates should understand the problem, the work and what you expect before they apply.</p>
+        </div>
+
+        <form className="employer-form-card" onSubmit={save}>
+          <div className="form-grid">
+            <label className="full">Job title<input required value={job.title} onChange={(e) => update("title", e.target.value)} placeholder="e.g. Growth Marketing Lead" /></label>
+            <label className="full">About the role<textarea required rows="7" value={job.description} onChange={(e) => update("description", e.target.value)} placeholder="What will this person own? What problem are they being hired to solve?"></textarea></label>
+            <label>Responsibilities<textarea rows="7" value={job.responsibilities} onChange={(e) => update("responsibilities", e.target.value)} placeholder={"Own weekly campaigns\nWork with the creative team\nReport growth metrics"}></textarea></label>
+            <label>Requirements<textarea rows="7" value={job.requirements} onChange={(e) => update("requirements", e.target.value)} placeholder={"3+ years experience\nStrong communication\nComfort with data"}></textarea></label>
+            <label className="full">Skills <span className="field-hint">Comma-separated · up to 12</span><input value={job.skillsText} onChange={(e) => update("skillsText", e.target.value)} placeholder="Digital Marketing, Strategy, Analytics, Content" /></label>
+            <label>Salary minimum (₦)<input inputMode="numeric" type="number" min="0" value={job.salaryMin} onChange={(e) => update("salaryMin", e.target.value)} placeholder="250000" /></label>
+            <label>Salary maximum (₦)<input inputMode="numeric" type="number" min="0" value={job.salaryMax} onChange={(e) => update("salaryMax", e.target.value)} placeholder="450000" /></label>
+            <label>Location<input value={job.location} onChange={(e) => update("location", e.target.value)} placeholder="Lagos, Nigeria" /></label>
+            <label>Industry<input value={job.industry} onChange={(e) => update("industry", e.target.value)} placeholder="Marketing & Advertising" /></label>
+            <label>Work arrangement
+              <select value={job.workType} onChange={(e) => update("workType", e.target.value)}>
+                <option>On-site</option><option>Hybrid</option><option>Remote</option>
+              </select>
+            </label>
+            <label>Employment type
+              <select value={job.employmentType} onChange={(e) => update("employmentType", e.target.value)}>
+                <option>Full-time</option><option>Part-time</option><option>Contract</option><option>Freelance</option><option>Internship</option>
+              </select>
+            </label>
+            <label>Experience level
+              <select value={job.experienceLevel} onChange={(e) => update("experienceLevel", e.target.value)}>
+                <option>Entry-level</option><option>Mid-level</option><option>Senior</option><option>Lead</option><option>Executive</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="publish-toggle">
+            <div>
+              <strong>Publish this role now</strong>
+              <span>{job.published ? "Candidates can discover and apply immediately." : "Save this as a draft and publish it later."}</span>
+            </div>
+            <button type="button" className={job.published ? "toggle is-on" : "toggle"} aria-pressed={job.published} onClick={() => update("published", !job.published)}>
+              <span />
+            </button>
+          </div>
+
+          {savedAs && <div className="soft-note"><strong>{savedAs === "published" ? "Role published." : "Draft saved."}</strong><span>Taking you back to your jobs.</span></div>}
+          {error && <div className="error-banner">{error}</div>}
+
+          <div className="employer-form-actions">
+            <p>{company.name} · {company.location}</p>
+            <Button className="button--lime button--large" disabled={saving}>{saving ? "Saving..." : editId ? "Save changes" : job.published ? "Publish job" : "Save draft"} <ArrowUpRight size={18} /></Button>
+          </div>
+        </form>
+      </main>
+    </div>
+  );
+}
+
+function EmployerApplicants({ user, jobId, onBack, onDashboard }) {
+  const [job, setJob] = useState(null);
+  const [applications, setApplications] = useState([]);
+  const [candidates, setCandidates] = useState({});
+  const [skillsByCandidate, setSkillsByCandidate] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const load = async () => {
+    if (!supabase || !user) { setLoading(false); return; }
+    const jobResult = await supabase
+      .from("jobs")
+      .select("*, companies(id, name, logo_url, industry, location)")
+      .eq("id", jobId)
+      .maybeSingle();
+    if (jobResult.error) {
+      setError(jobResult.error.message);
+      setLoading(false);
+      return;
+    }
+    if (!jobResult.data) {
+      setError("This role could not be found.");
+      setLoading(false);
+      return;
+    }
+
+    const appResult = await supabase
+      .from("applications")
+      .select("*")
+      .eq("job_id", jobId)
+      .order("created_at", { ascending: false });
+    if (appResult.error) {
+      setError(appResult.error.message);
+      setLoading(false);
+      return;
+    }
+
+    const apps = appResult.data || [];
+    const talentIds = [...new Set(apps.map((app) => app.talent_id))];
+    let profileData = [];
+    let skillData = [];
+    if (talentIds.length) {
+      const profileResult = await supabase
+        .from("profiles")
+        .select("id, name, headline, location, public_slug, video_url, published")
+        .in("id", talentIds);
+      if (profileResult.error) {
+        setError(profileResult.error.message);
+        setLoading(false);
+        return;
+      }
+      profileData = profileResult.data || [];
+
+      const skillResult = await supabase
+        .from("profile_skills")
+        .select("profile_id, skill, sort_order")
+        .in("profile_id", talentIds)
+        .order("sort_order", { ascending: true });
+      if (skillResult.error) {
+        setError(skillResult.error.message);
+        setLoading(false);
+        return;
+      }
+      skillData = skillResult.data || [];
+    }
+
+    const candidateMap = {};
+    profileData.forEach((profile) => { candidateMap[profile.id] = profile; });
+    const skillMap = {};
+    skillData.forEach((item) => {
+      if (!skillMap[item.profile_id]) skillMap[item.profile_id] = [];
+      skillMap[item.profile_id].push(item.skill);
+    });
+
+    setJob(jobResult.data);
+    setApplications(apps);
+    setCandidates(candidateMap);
+    setSkillsByCandidate(skillMap);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, [user, jobId]);
+
+  const updateStatus = async (applicationId, status) => {
+    if (!supabase) return;
+    const { error: updateError } = await supabase
+      .from("applications")
+      .update({ status })
+      .eq("id", applicationId);
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+    setApplications((current) => current.map((item) => item.id === applicationId ? { ...item, status } : item));
+  };
+
+  if (loading) return <div className="jobs-state">Loading applicants…</div>;
+  if (error && !job) return <div className="public-error"><a className="brand" href="#" onClick={(e) => { e.preventDefault(); onDashboard(); }}>PROOF<span>.</span></a><div><span className="eyebrow">APPLICANTS</span><h1>{error}</h1><Button className="button--dark button--large" onClick={onDashboard}>Back to dashboard</Button></div></div>;
+
+  const shortlisted = applications.filter((app) => app.status === "shortlisted").length;
+  const interviews = applications.filter((app) => app.status === "interview").length;
+
+  return (
+    <div className="jobs-shell">
+      <header className="jobs-nav">
+        <button className="jobs-back" onClick={onBack}><ArrowLeft size={16} /> Back to jobs</button>
+        <a className="brand" href="#" onClick={(e) => { e.preventDefault(); onDashboard(); }}>PROOF<span>.</span></a>
+        <span className="jobs-nav__label">{job.companies?.name || "COMPANY"}</span>
+      </header>
+
+      <main className="employer-page employer-applicants-page">
+        <section className="employer-applicants-head">
+          <div>
+            <span className="eyebrow">APPLICANTS</span>
+            <h1>{job.title}</h1>
+            <p>{job.companies?.name || "Your company"} <span>·</span> {job.location || "Flexible"} <span>·</span> {applications.length} applicants</p>
+          </div>
+          <div className="applicant-summary">
+            <div><strong>{shortlisted}</strong><span>shortlisted</span></div>
+            <div><strong>{interviews}</strong><span>interviews</span></div>
+          </div>
+        </section>
+
+        {applications.length === 0 ? (
+          <div className="employer-empty">
+            <div><span className="eyebrow">NO APPLICANTS YET</span><h2>The role is live. Now let the Proof come in.</h2><p>Share the opportunity to bring the right people into the pipeline.</p></div>
+            <Button className="button--dark button--large" onClick={() => navigate("/jobs/" + job.id)}>View public job <Eye size={18} /></Button>
+          </div>
+        ) : (
+          <div className="applicant-list">
+            {applications.map((application) => {
+              const candidate = candidates[application.talent_id];
+              const skills = skillsByCandidate[application.talent_id] || [];
+              return (
+                <article className="applicant-card" key={application.id}>
+                  <div className="applicant-card__visual">
+                    {candidate?.video_url ? <video src={candidate.video_url} controls playsInline preload="metadata" /> : <div className="applicant-video-empty"><Video size={24} /><span>No Proof video</span></div>}
+                  </div>
+                  <div className="applicant-card__body">
+                    <div className="applicant-card__top">
+                      <div>
+                        <span className="eyebrow">PROOF CANDIDATE</span>
+                        <h2>{candidate?.name || "Candidate"}</h2>
+                        <p>{candidate?.headline || "Profile not available"} {candidate?.location ? <><span>·</span> {candidate.location}</> : null}</p>
+                      </div>
+                      <span className={"application-status application-status--" + application.status}>{application.status}</span>
+                    </div>
+
+                    <div className="selected-skills applicant-skills">
+                      {skills.length ? skills.slice(0, 7).map((skill) => <span className="skill-pill static" key={skill}>{skill}</span>) : <span className="empty-note">No skills listed.</span>}
+                    </div>
+
+                    {application.message && <div className="applicant-message"><span className="eyebrow">CANDIDATE NOTE</span><p>{application.message}</p></div>}
+
+                    <div className="applicant-card__actions">
+                      {candidate?.public_slug && candidate.published ? (
+                        <button className="button button--outline button--small" onClick={() => navigate("/p/" + candidate.public_slug)}>View full Proof <ArrowUpRight size={14} /></button>
+                      ) : <span className="applicant-private-note">Candidate Proof is not published.</span>}
+                      <label className="applicant-status-select">Move to
+                        <select value={application.status} onChange={(e) => updateStatus(application.id, e.target.value)}>
+                          <option value="applied">Applied</option>
+                          <option value="viewed">Viewed</option>
+                          <option value="shortlisted">Shortlisted</option>
+                          <option value="interview">Interview</option>
+                          <option value="offer">Offer</option>
+                          <option value="hired">Hired</option>
+                          <option value="rejected">Rejected</option>
+                        </select>
+                      </label>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
       </main>
@@ -1479,6 +2344,13 @@ function App() {
     if (jobMatch) return { type: "job", id: jobMatch[1] };
     if (path === "/jobs") return { type: "jobs" };
     if (path === "/build") return { type: "build" };
+    const employerApplicantsMatch = path.match(/^\/employer\/jobs\/([^/]+)\/applicants$/);
+    const employerNewJobPath = path === "/employer/jobs/new";
+    if (employerApplicantsMatch) return { type: "employerApplicants", id: employerApplicantsMatch[1] };
+    if (employerNewJobPath) return { type: "employerJobForm" };
+    if (path === "/employer/onboarding") return { type: "employerOnboarding" };
+    if (path === "/employer/jobs") return { type: "employerJobs" };
+    if (path === "/employer") return { type: "employer" };
     if (path === "/candidate/applications") return { type: "applications" };
     if (new URLSearchParams(window.location.search).get("auth") === "1") return { type: "auth" };
     return { type: "landing" };
@@ -1486,6 +2358,7 @@ function App() {
 
   const [route, setRoute] = useState(getRoute);
   const [user, setUser] = useState(null);
+  const [userRole, setUserRole] = useState(null);
   const [checkingSession, setCheckingSession] = useState(true);
 
   useEffect(() => {
@@ -1497,13 +2370,29 @@ function App() {
       return () => window.removeEventListener("popstate", onPopState);
     }
 
-    supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? null);
+    supabase.auth.getSession().then(async ({ data }) => {
+      const sessionUser = data.session?.user ?? null;
+      setUser(sessionUser);
+      if (sessionUser) {
+        const { data: profileData } = await supabase.from("profiles").select("role").eq("id", sessionUser.id).maybeSingle();
+        setUserRole(profileData?.role || "talent");
+      } else {
+        setUserRole(null);
+      }
       setCheckingSession(false);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      const nextUser = session?.user ?? null;
+      setUser(nextUser);
+      if (!nextUser) {
+        setUserRole(null);
+        return;
+      }
+      window.setTimeout(async () => {
+        const { data: profileData } = await supabase.from("profiles").select("role").eq("id", nextUser.id).maybeSingle();
+        setUserRole(profileData?.role || "talent");
+      }, 0);
     });
 
     return () => {
@@ -1516,6 +2405,8 @@ function App() {
   const goAuth = () => navigate("/?auth=1");
   const goJobs = () => navigate("/jobs");
   const goApplications = () => navigate("/candidate/applications");
+  const goEmployer = () => navigate("/employer");
+  const goEmployerJobs = () => navigate("/employer/jobs");
 
   if (checkingSession) return <div className="loading-screen">Loading PROOF…</div>;
 
@@ -1524,9 +2415,10 @@ function App() {
   }
 
   if (route.type === "auth") {
-    return <AuthScreen onExit={goLanding} onAuthenticated={(authenticatedUser) => {
+    return <AuthScreen onExit={goLanding} onAuthenticated={(authenticatedUser, authenticatedRole) => {
       setUser(authenticatedUser);
-      navigate("/build");
+      setUserRole(authenticatedRole || "talent");
+      navigate(authenticatedRole === "employer" ? "/employer" : "/build");
     }} />;
   }
 
@@ -1550,5 +2442,19 @@ function App() {
     return <ApplicationsPage user={user} onBack={goLanding} onJobs={goJobs} onAuth={goAuth} />;
   }
 
-  return <LandingPage onStart={() => user ? navigate("/build") : goAuth()} />;
+  if (route.type === "employerOnboarding" || route.type === "employer" || route.type === "employerJobs" || route.type === "employerJobForm" || route.type === "employerApplicants") {
+    if (!user) { goAuth(); return null; }
+    if (userRole !== "employer") {
+      return <div className="public-error"><a className="brand" href="#" onClick={(e) => { e.preventDefault(); goLanding(); }}>PROOF<span>.</span></a><div><span className="eyebrow">EMPLOYER AREA</span><h1>This space is for hiring accounts.</h1><p style={{maxWidth: "520px", margin: "0 auto 24px", color: "#777872", lineHeight: 1.6}}>Your current account is set up for talent. Sign out and create an employer account to post roles and review applicants.</p><Button className="button--dark button--large" onClick={goLanding}>Back to PROOF <ArrowUpRight size={18} /></Button></div></div>;
+    }
+    if (route.type === "employerOnboarding") return <EmployerOnboarding user={user} onBack={goEmployer} onComplete={() => navigate("/employer")} />;
+    if (route.type === "employer") return <EmployerDashboard user={user} onBack={goLanding} onJobs={goEmployerJobs} />;
+    if (route.type === "employerJobs") return <EmployerJobsPage user={user} onBack={goLanding} />;
+    if (route.type === "employerJobForm") return <EmployerJobForm user={user} onBack={goEmployerJobs} />;
+    return <EmployerApplicants user={user} jobId={route.id} onBack={goEmployerJobs} onDashboard={goEmployer} />;
+  }
+
+  if (route.type === "applications" && userRole === "employer") return <EmployerDashboard user={user} onBack={goLanding} onJobs={goEmployerJobs} />;
+
+  return <LandingPage onStart={() => user ? navigate("/build") : goAuth()} onHire={() => user && userRole === "employer" ? goEmployer() : goAuth()} />;
 }
