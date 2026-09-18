@@ -49,7 +49,7 @@ function ProofCard() {
 
       <div className="proof-card__result">
         <div>
-          <span className="result-label">Recent result</span>
+          <span className="result-label">Example result</span>
           <strong>+35% qualified leads</strong>
         </div>
         <ArrowUpRight size={18} />
@@ -107,7 +107,7 @@ function App() {
           <div className="hero__visual">
             <div className="visual-glow" />
             <div className="floating-tag floating-tag--one">Real work</div>
-            <div className="floating-tag floating-tag--two">No degree required</div>
+            <div className="floating-tag floating-tag--two">Skills first</div>
             <ProofCard />
           </div>
         </section>
@@ -256,7 +256,7 @@ function App() {
           <a href="#">Privacy</a>
           <a href="#">Terms</a>
         </div>
-        <span className="footer__copy">© 2026 PROOF</span>
+        <span className="footer__copy">© 2026 PROOF — Demo</span>
       </footer>
     </div>
   );
