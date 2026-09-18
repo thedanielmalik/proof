@@ -629,6 +629,8 @@ function Onboarding({ onExit, user, onPublished }) {
   const draftStorageKey = user?.id ? "proof-draft-" + user.id : null;
 
   useEffect(() => {
+    setHydrated(false);
+    setProfileLoadError("");
     if (!supabase || !user?.id) return;
     let cancelled = false;
 
@@ -3211,6 +3213,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [checkingSession, setCheckingSession] = useState(true);
+  const authLookupVersion = useRef(0);
 
   useEffect(() => {
     const onPopState = () => setRoute(getRoute());
@@ -3220,6 +3223,7 @@ function App() {
     let cancelled = false;
 
     async function boot() {
+      const bootVersion = ++authLookupVersion.current;
       try {
         if (!supabase) return;
 
@@ -3228,7 +3232,7 @@ function App() {
           new Promise((resolve) => window.setTimeout(() => resolve({ data: { session: null }, error: new Error("Supabase session check timed out.") }), 6000)),
         ]);
 
-        if (cancelled) return;
+        if (cancelled || bootVersion !== authLookupVersion.current) return;
         if (error) console.warn("PROOF session bootstrap:", error.message);
 
         const sessionUser = data?.session?.user ?? null;
@@ -3241,6 +3245,7 @@ function App() {
             .eq("id", sessionUser.id)
             .maybeSingle();
 
+          if (cancelled || bootVersion !== authLookupVersion.current) return;
           if (profileError) console.warn("PROOF profile bootstrap:", profileError.message);
           setUserRole(profileData?.role || "talent");
         } else {
@@ -3248,12 +3253,12 @@ function App() {
         }
       } catch (error) {
         console.warn("PROOF startup fallback:", error);
-        if (!cancelled) {
+        if (!cancelled && bootVersion === authLookupVersion.current) {
           setUser(null);
           setUserRole(null);
         }
       } finally {
-        if (!cancelled) setCheckingSession(false);
+        if (!cancelled && bootVersion === authLookupVersion.current) setCheckingSession(false);
       }
     }
 
@@ -3264,6 +3269,7 @@ function App() {
       try {
         const subscription = supabase.auth.onAuthStateChange((_event, session) => {
           const nextUser = session?.user ?? null;
+          const lookupVersion = ++authLookupVersion.current;
           setUser(nextUser);
           if (!nextUser) {
             window.localStorage.removeItem("proof-beta-email");
@@ -3273,10 +3279,15 @@ function App() {
           }
           window.setTimeout(async () => {
             try {
+              if (cancelled || lookupVersion !== authLookupVersion.current) return;
               const { data: profileData } = await supabase.from("profiles").select("role").eq("id", nextUser.id).maybeSingle();
-              if (!cancelled) setUserRole(profileData?.role || "talent");
+              if (!cancelled && lookupVersion === authLookupVersion.current) {
+                setUserRole(profileData?.role || "talent");
+              }
             } catch (error) {
-              console.warn("PROOF auth-state profile lookup:", error);
+              if (!cancelled && lookupVersion === authLookupVersion.current) {
+                console.warn("PROOF auth-state profile lookup:", error);
+              }
             }
           }, 0);
         });
