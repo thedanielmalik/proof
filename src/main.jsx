@@ -8,9 +8,16 @@ import {
   ChevronRight,
   CircleStop,
   Play,
+  Search,
   Sparkles,
   Video,
   X,
+  MapPin,
+  BriefcaseBusiness,
+  CalendarDays,
+  ArrowRight,
+  SlidersHorizontal,
+
 } from "lucide-react";
 import "./styles.css";
 import { supabase } from "./lib/supabase";
@@ -875,6 +882,394 @@ function ProofVideoStep({ videoPreview, setVideoPreview, setVideoBlob, videoName
 }
 
 
+
+function formatNGN(min, max) {
+  if (min == null && max == null) return "Salary not listed";
+  const format = (value) => "₦" + new Intl.NumberFormat("en-NG", { maximumFractionDigits: 0 }).format(value);
+  if (min != null && max != null) return `${format(min)} – ${format(max)}`;
+  return min != null ? `${format(min)}+` : `Up to ${format(max)}`;
+}
+
+function navigate(path) {
+  window.history.pushState({}, "", path);
+  window.dispatchEvent(new PopStateEvent("popstate"));
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function JobCard({ job, onOpen }) {
+  return (
+    <button type="button" className="job-card" onClick={() => onOpen(job.id)}>
+      <div className="job-card__top">
+        <span className="job-badge">{job.is_demo ? "Demo opportunity" : "Opportunity"}</span>
+        <span className="job-card__date">{new Date(job.created_at).toLocaleDateString("en-NG", { day: "numeric", month: "short" })}</span>
+      </div>
+      <div className="job-card__identity">
+        <div className="company-mark">{(job.companies?.name || "P").slice(0, 1).toUpperCase()}</div>
+        <div>
+          <span className="job-company">{job.companies?.name || "Company"}</span>
+          <h2>{job.title}</h2>
+        </div>
+      </div>
+      <p className="job-card__description">{job.description}</p>
+      <div className="job-meta-row">
+        <span><MapPin size={14} /> {job.location || "Location flexible"}</span>
+        <span><BriefcaseBusiness size={14} /> {job.employment_type || "Role"}</span>
+        <span>{formatNGN(job.salary_min, job.salary_max)}</span>
+      </div>
+      <div className="job-card__skills">
+        {(job.skills || []).slice(0, 4).map((skill) => <span key={skill}>{skill}</span>)}
+      </div>
+      <div className="job-card__footer"><span>View opportunity</span><ArrowUpRight size={17} /></div>
+    </button>
+  );
+}
+
+function JobsHeader({ onBack, onApplications, user }) {
+  return (
+    <header className="jobs-nav">
+      <a className="brand" href="#" onClick={(e) => { e.preventDefault(); onBack(); }}>PROOF<span>.</span></a>
+      <nav className="jobs-nav__links">
+        <button className="jobs-nav__active" onClick={() => navigate("/jobs")}>Jobs</button>
+        {user && <button onClick={onApplications}>My applications</button>}
+        <button onClick={() => navigate("/#how")}>How it works</button>
+      </nav>
+      <div className="jobs-nav__actions">
+        {user ? <Button className="button--outline" onClick={onApplications}>Applications</Button> : <Button className="button--dark" onClick={() => window.dispatchEvent(new CustomEvent("proof-auth"))}>Build my Proof</Button>}
+      </div>
+    </header>
+  );
+}
+
+function JobsPage({ user, onBack, onAuth, onApplications }) {
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [workType, setWorkType] = useState("All");
+  const [employment, setEmployment] = useState("All");
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadJobs() {
+      if (!supabase) {
+        setError("PROOF is not connected to its database yet.");
+        setLoading(false);
+        return;
+      }
+      const { data, error: queryError } = await supabase
+        .from("jobs")
+        .select("*, companies(name, logo_url, industry)")
+        .eq("published", true)
+        .order("created_at", { ascending: false });
+      if (cancelled) return;
+      if (queryError) setError(queryError.message || "Could not load jobs.");
+      else setJobs(data || []);
+      setLoading(false);
+    }
+    loadJobs();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    const listener = () => onAuth();
+    window.addEventListener("proof-auth", listener);
+    return () => window.removeEventListener("proof-auth", listener);
+  }, [onAuth]);
+
+  const filteredJobs = jobs.filter((job) => {
+    const q = search.trim().toLowerCase();
+    const searchable = [
+      job.title,
+      job.description,
+      job.location,
+      job.companies?.name,
+      job.companies?.industry,
+      ...(job.skills || []),
+    ].filter(Boolean).join(" ").toLowerCase();
+
+    return (!q || searchable.includes(q))
+      && (workType === "All" || job.work_type === workType)
+      && (employment === "All" || job.employment_type === employment);
+  });
+
+  return (
+    <div className="jobs-shell">
+      <JobsHeader user={user} onBack={onBack} onApplications={onApplications} />
+      <main className="jobs-page">
+        <section className="jobs-hero">
+          <div>
+            <span className="eyebrow">OPPORTUNITIES</span>
+            <h1>Find work worth<br /><em>showing up for.</em></h1>
+            <p>Discover roles where your skills, work and Proof can tell the story before the first interview.</p>
+          </div>
+          <div className="jobs-hero__note">
+            <span className="jobs-hero__dot" />
+            {jobs.length ? `${jobs.length} opportunities live` : "New opportunities are on the way"}
+          </div>
+        </section>
+
+        <section className="jobs-toolbar">
+          <label className="jobs-search">
+            <Search size={18} />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search roles, skills or companies" />
+          </label>
+          <div className="jobs-filter">
+            <SlidersHorizontal size={16} />
+            <select value={workType} onChange={(e) => setWorkType(e.target.value)}>
+              <option>All</option>
+              <option>Remote</option>
+              <option>Hybrid</option>
+              <option>On-site</option>
+            </select>
+          </div>
+          <div className="jobs-filter">
+            <BriefcaseBusiness size={16} />
+            <select value={employment} onChange={(e) => setEmployment(e.target.value)}>
+              <option>All</option>
+              <option>Full-time</option>
+              <option>Part-time</option>
+              <option>Contract</option>
+              <option>Freelance</option>
+              <option>Internship</option>
+            </select>
+          </div>
+        </section>
+
+        {loading && <div className="jobs-state">Loading opportunities…</div>}
+        {error && <div className="error-banner jobs-error">{error}</div>}
+        {!loading && !error && (
+          <section className="jobs-grid">
+            {filteredJobs.map((job) => <JobCard key={job.id} job={job} onOpen={(id) => navigate("/jobs/" + id)} />)}
+          </section>
+        )}
+
+        {!loading && !error && filteredJobs.length === 0 && (
+          <div className="jobs-empty">
+            <span className="eyebrow">NO MATCHES</span>
+            <h2>Nothing fits those filters yet.</h2>
+            <p>Try a different role, skill or work arrangement.</p>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function JobDetails({ jobId, user, onBack, onAuth, onApplications }) {
+  const [job, setJob] = useState(null);
+  const [application, setApplication] = useState(null);
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [applying, setApplying] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (!supabase) return;
+      const { data, error: jobError } = await supabase
+        .from("jobs")
+        .select("*, companies(name, logo_url, industry, location, description)")
+        .eq("id", jobId)
+        .eq("published", true)
+        .maybeSingle();
+      if (jobError) {
+        if (!cancelled) { setError(jobError.message); setLoading(false); }
+        return;
+      }
+      if (!data) {
+        if (!cancelled) { setError("This opportunity is no longer available."); setLoading(false); }
+        return;
+      }
+      let existing = null;
+      if (user) {
+        const result = await supabase
+          .from("applications")
+          .select("*")
+          .eq("job_id", jobId)
+          .eq("talent_id", user.id)
+          .maybeSingle();
+        existing = result.data || null;
+      }
+      if (!cancelled) {
+        setJob(data);
+        setApplication(existing);
+        setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [jobId, user]);
+
+  const apply = async () => {
+    if (!user) { onAuth(); return; }
+    if (!supabase) return;
+    setApplying(true);
+    setError("");
+    const { data, error: applyError } = await supabase.from("applications").insert({
+      job_id: jobId,
+      talent_id: user.id,
+      status: "applied",
+      message: message.trim() || null,
+    }).select("*").single();
+
+    if (applyError) {
+      setError(applyError.code === "23505" ? "You've already applied for this opportunity." : applyError.message);
+    } else {
+      setApplication(data);
+      setSuccess(true);
+    }
+    setApplying(false);
+  };
+
+  if (loading) return <div className="jobs-state">Loading opportunity…</div>;
+  if (error && !job) return <div className="public-error"><a className="brand" href="#" onClick={(e) => { e.preventDefault(); onBack(); }}>PROOF<span>.</span></a><div><span className="eyebrow">OPPORTUNITY</span><h1>{error}</h1><Button className="button--dark button--large" onClick={onBack}>Back to jobs</Button></div></div>;
+
+  return (
+    <div className="jobs-shell">
+      <header className="jobs-nav">
+        <button className="jobs-back" onClick={onBack}><ArrowLeft size={16} /> All jobs</button>
+        <a className="brand" href="#" onClick={(e) => { e.preventDefault(); onBack(); }}>PROOF<span>.</span></a>
+        <div>{user ? <Button className="button--outline" onClick={onApplications}>My applications</Button> : <Button className="button--dark" onClick={onAuth}>Build my Proof</Button>}</div>
+      </header>
+
+      <main className="job-details-page">
+        <div className="job-details__main">
+          <div className="job-company-head">
+            <div className="company-mark company-mark--large">{(job.companies?.name || "P").slice(0, 1).toUpperCase()}</div>
+            <div><span>{job.companies?.name || "Company"}{job.is_demo ? " · Demo opportunity" : ""}</span><p>{job.companies?.industry || job.industry || "Company"}</p></div>
+          </div>
+
+          <h1>{job.title}</h1>
+          <div className="job-detail-meta">
+            <span><MapPin size={15} /> {job.location || "Flexible location"}</span>
+            <span><BriefcaseBusiness size={15} /> {job.employment_type || "Role"}</span>
+            <span>{job.work_type || "Work arrangement"}</span>
+          </div>
+
+          <div className="job-detail-section"><span className="eyebrow">ABOUT THE ROLE</span><p>{job.description}</p></div>
+
+          <div className="job-detail-section"><span className="eyebrow">SKILLS</span><div className="selected-skills">{(job.skills || []).map((skill) => <span className="skill-pill static" key={skill}>{skill}</span>)}</div></div>
+
+          {job.companies?.description && <div className="job-detail-section"><span className="eyebrow">ABOUT THE COMPANY</span><p>{job.companies.description}</p></div>}
+        </div>
+
+        <aside className="job-details__side">
+          <div className="apply-card">
+            <span className="eyebrow">COMPENSATION</span>
+            <h2>{formatNGN(job.salary_min, job.salary_max)}</h2>
+            <div className="apply-card__facts">
+              <span><CalendarDays size={15} /> {job.experience_level || "Experience flexible"}</span>
+              <span><BriefcaseBusiness size={15} /> {job.employment_type || "Employment type"}</span>
+            </div>
+
+            {success ? (
+              <div className="apply-success">
+                <Check size={20} />
+                <strong>Application sent.</strong>
+                <span>Your Proof has been sent for this opportunity.</span>
+                <Button className="button--dark" onClick={onApplications}>View my applications <ArrowRight size={15} /></Button>
+              </div>
+            ) : application ? (
+              <div className="apply-success">
+                <Check size={20} />
+                <strong>Already applied.</strong>
+                <span>Status: {application.status}</span>
+                <Button className="button--outline" onClick={onApplications}>View my applications</Button>
+              </div>
+            ) : (
+              <>
+                <textarea className="apply-message" rows="5" value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Optional: add a short message to the employer." />
+                {error && <div className="error-banner">{error}</div>}
+                <Button className="button--lime button--large apply-button" onClick={apply} disabled={applying}>
+                  {user ? (applying ? "Sending..." : "Apply with my Proof") : "Create my Proof to apply"} <ArrowUpRight size={18} />
+                </Button>
+                <p className="apply-note">Your profile, Proof video, skills and work are attached automatically.</p>
+              </>
+            )}
+          </div>
+        </aside>
+      </main>
+    </div>
+  );
+}
+
+function ApplicationsPage({ user, onBack, onJobs, onAuth }) {
+  const [applications, setApplications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (!user || !supabase) { setLoading(false); return; }
+      const { data, error: queryError } = await supabase
+        .from("applications")
+        .select("*, jobs(id, title, location, work_type, employment_type, salary_min, salary_max, companies(name, industry))")
+        .eq("talent_id", user.id)
+        .order("created_at", { ascending: false });
+      if (cancelled) return;
+      if (queryError) setError(queryError.message || "Could not load your applications.");
+      else setApplications(data || []);
+      setLoading(false);
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [user]);
+
+  if (!user) {
+    onAuth();
+    return null;
+  }
+
+  return (
+    <div className="jobs-shell">
+      <header className="jobs-nav">
+        <a className="brand" href="#" onClick={(e) => { e.preventDefault(); onBack(); }}>PROOF<span>.</span></a>
+        <nav className="jobs-nav__links">
+          <button onClick={onJobs}>Jobs</button>
+          <button className="jobs-nav__active">My applications</button>
+        </nav>
+        <Button className="button--dark" onClick={onJobs}>Find opportunities</Button>
+      </header>
+
+      <main className="applications-page">
+        <div className="applications-head"><div><span className="eyebrow">YOUR PROGRESS</span><h1>My applications.</h1><p>Keep track of every opportunity you’ve put your Proof against.</p></div><div className="applications-count">{applications.length}<span>applications</span></div></div>
+
+        {loading && <div className="jobs-state">Loading your applications…</div>}
+        {error && <div className="error-banner jobs-error">{error}</div>}
+
+        {!loading && !error && applications.length === 0 && (
+          <div className="applications-empty">
+            <span className="eyebrow">NOTHING HERE YET</span>
+            <h2>Your next opportunity starts with your Proof.</h2>
+            <p>Browse live roles and apply without rebuilding a CV every time.</p>
+            <Button className="button--lime button--large" onClick={onJobs}>Find opportunities <ArrowUpRight size={18} /></Button>
+          </div>
+        )}
+
+        {!loading && !error && applications.length > 0 && (
+          <div className="applications-list">
+            {applications.map((application) => (
+              <button key={application.id} className="application-row" onClick={() => navigate("/jobs/" + application.jobs.id)}>
+                <div className="application-company">{(application.jobs?.companies?.name || "P").slice(0, 1).toUpperCase()}</div>
+                <div className="application-meta">
+                  <strong>{application.jobs?.title}</strong>
+                  <span>{application.jobs?.companies?.name || "Company"} · {application.jobs?.location || "Flexible"}</span>
+                </div>
+                <span className={`application-status application-status--${application.status}`}>{application.status}</span>
+                <div className="application-date">{new Date(application.created_at).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}</div>
+                <ArrowUpRight size={17} />
+              </button>
+            ))}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
 function PublicProfile({ slug, onBack }) {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState(null);
@@ -1076,29 +1471,24 @@ function PublicProfile({ slug, onBack }) {
 }
 
 function App() {
-  const [mode, setMode] = useState("landing");
+  const getRoute = () => {
+    const path = window.location.pathname;
+    const publicMatch = path.match(/^\/p\/([^/]+)/);
+    const jobMatch = path.match(/^\/jobs\/([^/]+)/);
+    if (publicMatch) return { type: "public", slug: publicMatch[1] };
+    if (jobMatch) return { type: "job", id: jobMatch[1] };
+    if (path === "/jobs") return { type: "jobs" };
+    if (path === "/candidate/applications") return { type: "applications" };
+    return { type: "landing" };
+  };
+
+  const [route, setRoute] = useState(getRoute);
   const [user, setUser] = useState(null);
   const [checkingSession, setCheckingSession] = useState(true);
-  const [publicSlug, setPublicSlug] = useState(() => {
-    const match = window.location.pathname.match(/^\/p\/([^/]+)/);
-    return match?.[1] || "";
-  });
 
   useEffect(() => {
-    const onPopState = () => {
-      const match = window.location.pathname.match(/^\/p\/([^/]+)/);
-      if (match?.[1]) {
-        setPublicSlug(match[1]);
-        setMode("public");
-      } else {
-        setPublicSlug("");
-        setMode("landing");
-      }
-    };
-
+    const onPopState = () => setRoute(getRoute());
     window.addEventListener("popstate", onPopState);
-
-    if (publicSlug) setMode("public");
 
     if (!supabase) {
       setCheckingSession(false);
@@ -1120,45 +1510,49 @@ function App() {
     };
   }, []);
 
-  if (publicSlug || mode === "public") {
-    return <PublicProfile slug={publicSlug} onBack={() => {
-      window.history.pushState({}, "", "/");
-      setPublicSlug("");
-      setMode("landing");
-    }} />;
-  }
+  const goLanding = () => navigate("/");
+  const goAuth = () => navigate("/?auth=1");
+  const goJobs = () => navigate("/jobs");
+  const goApplications = () => navigate("/candidate/applications");
+
+  useEffect(() => {
+    if (route.type === "landing" && window.location.search.includes("auth=1")) {
+      setRoute({ type: "auth" });
+    }
+  }, [route.type]);
 
   if (checkingSession) return <div className="loading-screen">Loading PROOF…</div>;
 
-  if (mode === "auth") {
-    return <AuthScreen onExit={() => setMode("landing")} onAuthenticated={(authenticatedUser) => {
+  if (route.type === "public") {
+    return <PublicProfile slug={route.slug} onBack={goLanding} />;
+  }
+
+  if (route.type === "auth") {
+    return <AuthScreen onExit={goLanding} onAuthenticated={(authenticatedUser) => {
       setUser(authenticatedUser);
-      setMode("onboarding");
+      navigate("/build");
     }} />;
   }
 
-  if (mode === "onboarding") {
-    if (!user) return <AuthScreen onExit={() => setMode("landing")} onAuthenticated={(authenticatedUser) => {
-      setUser(authenticatedUser);
-      setMode("onboarding");
-    }} />;
-    return <Onboarding user={user} onExit={() => setMode("landing")} onPublished={(slug) => {
-      window.history.pushState({}, "", "/p/" + slug);
-      setPublicSlug(slug);
-      setMode("public");
-      window.scrollTo({ top: 0 });
-    }} />;
+  if (route.type === "build") {
+    if (!user) {
+      goAuth();
+      return null;
+    }
+    return <Onboarding user={user} onExit={goLanding} onPublished={(slug) => navigate("/p/" + slug)} />;
   }
 
-  return <LandingPage onStart={() => {
-    window.scrollTo({ top: 0 });
-    setMode(user ? "onboarding" : "auth");
-  }} />;
+  if (route.type === "jobs") {
+    return <JobsPage user={user} onBack={goLanding} onAuth={goAuth} onApplications={goApplications} />;
+  }
+
+  if (route.type === "job") {
+    return <JobDetails jobId={route.id} user={user} onBack={goJobs} onAuth={goAuth} onApplications={goApplications} />;
+  }
+
+  if (route.type === "applications") {
+    return <ApplicationsPage user={user} onBack={goLanding} onJobs={goJobs} onAuth={goAuth} />;
+  }
+
+  return <LandingPage onStart={() => user ? navigate("/build") : goAuth()} />;
 }
-
-
-createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
