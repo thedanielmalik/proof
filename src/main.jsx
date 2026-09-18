@@ -206,7 +206,7 @@ function LandingPage({ onStart, onHire, onSignIn, user, userRole }) {
             <span className="eyebrow">FOR TALENT</span>
             <h2>Your experience is bigger than your CV.</h2>
             <p>Put your skills, work, results and personality in one shareable profile. Make it easier for the right opportunities to understand you.</p>
-            <button className="text-link" onClick={onStart}>Build my Proof <ArrowUpRight size={18} /></button>
+            <button className="text-link" onClick={onStart}>{user ? "Edit my Proof" : "Build my Proof"} <ArrowUpRight size={18} /></button>
           </div>
           <div className="mini-profile">
             <div className="mini-profile__top"><span>YOUR PROOF</span><span className="mini-profile__live"><span className="status-dot" /> Live</span></div>
@@ -255,7 +255,7 @@ function LandingPage({ onStart, onHire, onSignIn, user, userRole }) {
             <h2>What can you do?</h2>
             <p>Don't just put it on your CV. Prove it.</p>
             <div className="cta__buttons">
-              <Button className="button--dark button--large" onClick={onStart}>Build my Proof <ArrowUpRight size={18} /></Button>
+              <Button className="button--dark button--large" onClick={onStart}>{user ? "Edit my Proof" : "Build my Proof"} <ArrowUpRight size={18} /></Button>
               <button className="button button--outline button--large" onClick={onHire}>I'm hiring talent</button>
               <button className="button button--ghost button--large" onClick={() => navigate("/founding-100")}>Join the Founding 100 <ArrowUpRight size={18} /></button>
             </div>
@@ -637,6 +637,7 @@ function Onboarding({ onExit, user, onPublished }) {
         if (cancelled || !profileResult.data) return;
 
         const dbProfile = profileResult.data;
+        if (dbProfile.video_url) setVideoPreview(dbProfile.video_url);
         const dbDraft = {
           name: dbProfile.name || "",
           location: dbProfile.location || "",
@@ -1196,9 +1197,17 @@ function formatNGN(min, max) {
 }
 
 function navigate(path) {
-  window.history.pushState({}, "", path);
+  const url = new URL(path, window.location.origin);
+  window.history.pushState({}, "", url.pathname + url.search + url.hash);
   window.dispatchEvent(new PopStateEvent("popstate"));
-  window.scrollTo({ top: 0, behavior: "smooth" });
+
+  window.setTimeout(() => {
+    if (url.hash) {
+      document.getElementById(url.hash.slice(1))?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, 0);
 }
 
 function JobCard({ job, onOpen }) {
