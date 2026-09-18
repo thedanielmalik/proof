@@ -2860,3 +2860,5 @@ function App() {
 
   return <LandingPage onStart={() => user ? navigate("/build") : goAuth()} onHire={() => user && userRole === "employer" ? goEmployer() : goAuth()} />;
 }
+
+createRoot(document.getElementById("root")).render(<AppErrorBoundary><App /></AppErrorBoundary>);
