@@ -481,13 +481,14 @@ function AuthScreen({ onAuthenticated, onExit }) {
         if (signUpError) throw signUpError;
 
         if (data.session) {
-          await supabase.from("profiles").update({ name }).eq("id", data.user.id);
-          const { data: profileData } = await supabase
+          const { data: profileData, error: profileError } = await supabase
             .from("profiles")
             .select("role,published,public_slug")
             .eq("id", data.user.id)
             .maybeSingle();
-          onAuthenticated(data.user, profileData?.role || role, profileData);
+          if (profileError) throw profileError;
+          if (!profileData) throw new Error("Your account was created, but your PROOF profile could not be loaded.");
+          onAuthenticated(data.user, profileData.role || role, profileData);
         } else {
           setMessage("Account created. Check your email to confirm your account, then sign in.");
           setMode("signin");
@@ -503,7 +504,8 @@ function AuthScreen({ onAuthenticated, onExit }) {
           .maybeSingle();
 
         if (profileError) throw profileError;
-        onAuthenticated(data.user, profileData?.role || "talent", profileData);
+        if (!profileData) throw new Error("We found your account, but your PROOF profile could not be loaded.");
+        onAuthenticated(data.user, profileData.role || "talent", profileData);
       }
     } catch (err) {
       setError(err.message || "Something went wrong.");
@@ -596,25 +598,95 @@ function Onboarding({ onExit, user, onPublished }) {
   const [newSkill, setNewSkill] = useState("");
   const [videoPreview, setVideoPreview] = useState("");
   const [videoBlob, setVideoBlob] = useState(null);
+  const draftStorageKey = user?.id ? "proof-draft-" + user.id : null;
 
   useEffect(() => {
-    const saved = window.localStorage.getItem("proof-draft");
-    if (saved) {
+    if (!supabase || !user?.id) return;
+    let cancelled = false;
+
+    async function loadExistingProfile() {
       try {
-        const parsed = JSON.parse(saved);
-        setProfile((current) => ({ ...current, ...parsed }));
-      } catch {
-        // Ignore malformed local draft.
+        const [profileResult, skillsResult, experiencesResult, educationResult, workResult] = await Promise.all([
+          supabase.from("profiles").select("name,location,headline,bio,intent,video_url,video_name").eq("id", user.id).maybeSingle(),
+          supabase.from("profile_skills").select("skill,sort_order").eq("profile_id", user.id).order("sort_order"),
+          supabase.from("experiences").select("*").eq("profile_id", user.id).order("sort_order"),
+          supabase.from("education").select("*").eq("profile_id", user.id).limit(1).maybeSingle(),
+          supabase.from("portfolio_items").select("*").eq("profile_id", user.id).order("sort_order"),
+        ]);
+
+        for (const result of [profileResult, skillsResult, experiencesResult, educationResult, workResult]) {
+          if (result.error) throw result.error;
+        }
+        if (cancelled || !profileResult.data) return;
+
+        const dbProfile = profileResult.data;
+        const dbDraft = {
+          name: dbProfile.name || "",
+          location: dbProfile.location || "",
+          headline: dbProfile.headline || "",
+          bio: dbProfile.bio || "",
+          intent: dbProfile.intent || "Full-time",
+          role: dbProfile.headline || "",
+          skills: (skillsResult.data || []).map((item) => item.skill),
+          experience: (experiencesResult.data || []).map((item) => ({
+            company: item.company || "",
+            role: item.role || "",
+            start: item.start_date ? String(item.start_date).slice(0, 7) : "",
+            end: item.end_date ? String(item.end_date).slice(0, 7) : "",
+            current: Boolean(item.current),
+            description: item.description || "",
+            achievements: item.achievements || "",
+          })),
+          education: educationResult.data ? {
+            institution: educationResult.data.institution || "",
+            qualification: educationResult.data.qualification || "",
+            field: educationResult.data.field || "",
+            start: educationResult.data.start_year ? String(educationResult.data.start_year) : "",
+            end: educationResult.data.end_year ? String(educationResult.data.end_year) : "",
+          } : { institution: "", qualification: "", field: "", start: "", end: "" },
+          work: (workResult.data || []).map((item) => ({
+            title: item.title || "",
+            description: item.description || "",
+            role: item.role || "",
+            result: item.result || "",
+            url: item.url || "",
+          })),
+          videoUrl: dbProfile.video_url || "",
+          videoName: dbProfile.video_name || "",
+        };
+
+        const saved = draftStorageKey ? window.localStorage.getItem(draftStorageKey) : null;
+        let localDraft = {};
+        if (saved) {
+          try { localDraft = JSON.parse(saved) || {}; } catch { /* Ignore malformed local draft. */ }
+        }
+
+        setProfile((current) => ({
+          ...current,
+          ...dbDraft,
+          ...localDraft,
+          experience: localDraft.experience || dbDraft.experience || current.experience,
+          education: localDraft.education || dbDraft.education || current.education,
+          work: localDraft.work || dbDraft.work || current.work,
+          skills: localDraft.skills || dbDraft.skills || current.skills,
+        }));
+        window.localStorage.removeItem("proof-draft");
+      } catch (error) {
+        console.warn("PROOF profile hydration:", error);
       }
     }
-  }, []);
+
+    loadExistingProfile();
+    return () => { cancelled = true; };
+  }, [user?.id, draftStorageKey]);
 
   useEffect(() => {
+    if (!draftStorageKey) return undefined;
     const timer = window.setTimeout(() => {
-      window.localStorage.setItem("proof-draft", JSON.stringify(profile));
+      window.localStorage.setItem(draftStorageKey, JSON.stringify(profile));
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [profile]);
+  }, [profile, draftStorageKey]);
 
   const update = (key, value) => setProfile((current) => ({ ...current, [key]: value }));
 
@@ -681,7 +753,8 @@ function Onboarding({ onExit, user, onPublished }) {
       let uploadedVideoUrl = profile.videoUrl || null;
 
       if (videoBlob) {
-        const extension = videoBlob.type.includes("mp4") ? "mp4" : "webm";
+        const videoExtensions = { "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov" };
+        const extension = videoExtensions[videoBlob.type] || "webm";
         const path = user.id + "/proof-" + Date.now() + "." + extension;
 
         const { error: uploadError } = await supabase.storage.from("proof-videos-public").upload(path, videoBlob, {
@@ -706,11 +779,13 @@ function Onboarding({ onExit, user, onPublished }) {
         intent: profile.intent,
         video_url: uploadedVideoUrl,
         video_name: profile.videoName || null,
-        published: true,
       });
       if (profileError) throw profileError;
 
-      await supabase.from("profile_skills").delete().eq("profile_id", user.id);
+      {
+        const { error } = await supabase.from("profile_skills").delete().eq("profile_id", user.id);
+        if (error) throw error;
+      }
       if (profile.skills.length) {
         const { error } = await supabase.from("profile_skills").insert(
           profile.skills.map((skill, index) => ({ profile_id: user.id, skill, sort_order: index }))
@@ -718,7 +793,10 @@ function Onboarding({ onExit, user, onPublished }) {
         if (error) throw error;
       }
 
-      await supabase.from("experiences").delete().eq("profile_id", user.id);
+      {
+        const { error } = await supabase.from("experiences").delete().eq("profile_id", user.id);
+        if (error) throw error;
+      }
       const experiences = profile.experience
         .filter((item) => item.company || item.role || item.description)
         .map((item, index) => ({
@@ -737,7 +815,10 @@ function Onboarding({ onExit, user, onPublished }) {
         if (error) throw error;
       }
 
-      await supabase.from("education").delete().eq("profile_id", user.id);
+      {
+        const { error } = await supabase.from("education").delete().eq("profile_id", user.id);
+        if (error) throw error;
+      }
       if (profile.education.institution || profile.education.qualification || profile.education.field) {
         const { error } = await supabase.from("education").insert({
           profile_id: user.id,
@@ -750,7 +831,10 @@ function Onboarding({ onExit, user, onPublished }) {
         if (error) throw error;
       }
 
-      await supabase.from("portfolio_items").delete().eq("profile_id", user.id);
+      {
+        const { error } = await supabase.from("portfolio_items").delete().eq("profile_id", user.id);
+        if (error) throw error;
+      }
       const work = profile.work
         .filter((item) => item.title || item.description)
         .map((item, index) => ({
@@ -767,8 +851,11 @@ function Onboarding({ onExit, user, onPublished }) {
         if (error) throw error;
       }
 
+      const { error: publishError } = await supabase.from("profiles").update({ published: true }).eq("id", user.id);
+      if (publishError) throw publishError;
+
       const publishedProfile = { ...profile, publicSlug, videoUrl: uploadedVideoUrl };
-      window.localStorage.removeItem("proof-draft");
+      if (draftStorageKey) window.localStorage.removeItem(draftStorageKey);
       setProfile(publishedProfile);
 
       if (onPublished) {
@@ -1122,23 +1209,38 @@ function JobCard({ job, onOpen }) {
   );
 }
 
-function JobsHeader({ onBack, onApplications, onEmployer, user, userRole }) {
+function JobsHeader({ onBack, onApplications, onEmployer, onAdmin, user, userRole }) {
   return (
     <header className="jobs-nav">
       <a className="brand" href="#" onClick={(e) => { e.preventDefault(); onBack(); }}>PROOF<span>.</span></a>
       <nav className="jobs-nav__links">
         <button className="jobs-nav__active" onClick={() => navigate("/jobs")}>Jobs</button>
-        {user && (userRole === "employer" ? <button onClick={onEmployer}>Employer dashboard</button> : <button onClick={onApplications}>My applications</button>)}
+        {user && (
+          userRole === "admin"
+            ? <button onClick={onAdmin}>Command center</button>
+            : userRole === "employer"
+              ? <button onClick={onEmployer}>Employer dashboard</button>
+              : <button onClick={onApplications}>My applications</button>
+        )}
         <button onClick={() => navigate("/#how")}>How it works</button>
       </nav>
       <div className="jobs-nav__actions">
-        {user ? <><UnreadMessages user={user} onOpen={() => navigate("/messages")} />{userRole === "employer" ? <Button className="button--outline" onClick={onEmployer}>Employer dashboard</Button> : <Button className="button--outline" onClick={onApplications}>Applications</Button>}</> : <Button className="button--dark" onClick={() => window.dispatchEvent(new CustomEvent("proof-auth"))}>Build my Proof</Button>}
+        {user ? (
+          <>
+            {userRole !== "admin" && <UnreadMessages user={user} onOpen={() => navigate("/messages")} />}
+            {userRole === "admin"
+              ? <Button className="button--outline" onClick={onAdmin}>Command center</Button>
+              : userRole === "employer"
+                ? <Button className="button--outline" onClick={onEmployer}>Employer dashboard</Button>
+                : <Button className="button--outline" onClick={onApplications}>Applications</Button>}
+          </>
+        ) : <Button className="button--dark" onClick={() => window.dispatchEvent(new CustomEvent("proof-auth"))}>Build my Proof</Button>}
       </div>
     </header>
   );
 }
 
-function JobsPage({ user, userRole, onBack, onAuth, onApplications, onEmployer }) {
+function JobsPage({ user, userRole, onBack, onAuth, onApplications, onEmployer, onAdmin }) {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -1192,7 +1294,7 @@ function JobsPage({ user, userRole, onBack, onAuth, onApplications, onEmployer }
 
   return (
     <div className="jobs-shell">
-      <JobsHeader user={user} userRole={userRole} onBack={onBack} onApplications={onApplications} onEmployer={onEmployer} />
+      <JobsHeader user={user} userRole={userRole} onBack={onBack} onApplications={onApplications} onEmployer={onEmployer} onAdmin={onAdmin} />
       <main className="jobs-page">
         <section className="jobs-hero">
           <div>
@@ -1253,7 +1355,7 @@ function JobsPage({ user, userRole, onBack, onAuth, onApplications, onEmployer }
   );
 }
 
-function JobDetails({ jobId, user, userRole, onBack, onAuth, onApplications, onEmployer }) {
+function JobDetails({ jobId, user, userRole, onBack, onAuth, onApplications, onEmployer, onAdmin }) {
   const [job, setJob] = useState(null);
   const [application, setApplication] = useState(null);
   const [message, setMessage] = useState("");
@@ -1288,6 +1390,7 @@ function JobDetails({ jobId, user, userRole, onBack, onAuth, onApplications, onE
           .eq("job_id", jobId)
           .eq("talent_id", user.id)
           .maybeSingle();
+        if (result.error) throw result.error;
         existing = result.data || null;
       }
       if (!cancelled) {
@@ -1329,7 +1432,13 @@ function JobDetails({ jobId, user, userRole, onBack, onAuth, onApplications, onE
       <header className="jobs-nav">
         <button className="jobs-back" onClick={onBack}><ArrowLeft size={16} /> All jobs</button>
         <a className="brand" href="#" onClick={(e) => { e.preventDefault(); onBack(); }}>PROOF<span>.</span></a>
-        <div>{user ? (userRole === "employer" ? <Button className="button--outline" onClick={onEmployer}>Employer dashboard</Button> : <Button className="button--outline" onClick={onApplications}>My applications</Button>) : <Button className="button--dark" onClick={onAuth}>Build my Proof</Button>}</div>
+        <div>{user ? (
+          userRole === "admin"
+            ? <Button className="button--outline" onClick={onAdmin}>Command center</Button>
+            : userRole === "employer"
+              ? <Button className="button--outline" onClick={onEmployer}>Employer dashboard</Button>
+              : <Button className="button--outline" onClick={onApplications}>My applications</Button>
+        ) : <Button className="button--dark" onClick={onAuth}>Build my Proof</Button>}</div>
       </header>
 
       <main className="job-details-page">
@@ -1378,7 +1487,7 @@ function JobDetails({ jobId, user, userRole, onBack, onAuth, onApplications, onE
                 <Check size={20} />
                 <strong>Already applied.</strong>
                 <span>Status: {application.status}</span>
-                <div className="apply-success__actions"><Button className="button--outline" onClick={() => navigate("/messages?application=" + jobId)}>Message employer <MessageCircle size={14} /></Button><Button className="button--outline" onClick={onApplications}>View my applications</Button></div>
+                <div className="apply-success__actions"><Button className="button--outline" onClick={() => navigate("/messages?application=" + application.id)}>Message employer <MessageCircle size={14} /></Button><Button className="button--outline" onClick={onApplications}>View my applications</Button></div>
               </div>
             ) : userRole === "employer" ? (
               <div className="apply-success">
@@ -2479,10 +2588,29 @@ function EmployerApplicants({ user, jobId, onBack, onDashboard }) {
 
   const load = async () => {
     if (!supabase || !user) { setLoading(false); return; }
+    const companyResult = await supabase
+      .from("companies")
+      .select("id")
+      .eq("owner_id", user.id)
+      .eq("is_demo", false)
+      .limit(1)
+      .maybeSingle();
+    if (companyResult.error) {
+      setError(companyResult.error.message);
+      setLoading(false);
+      return;
+    }
+    if (!companyResult.data) {
+      setError("You need a hiring workspace before you can review applicants.");
+      setLoading(false);
+      return;
+    }
+
     const jobResult = await supabase
       .from("jobs")
-      .select("*, companies(id, name, logo_url, industry, location)")
+      .select("*, companies(id, name, logo_url, industry, location, owner_id)")
       .eq("id", jobId)
+      .eq("company_id", companyResult.data.id)
       .maybeSingle();
     if (jobResult.error) {
       setError(jobResult.error.message);
@@ -2998,6 +3126,7 @@ function App() {
   const goApplications = () => navigate("/candidate/applications");
   const goEmployer = () => navigate("/employer");
   const goEmployerJobs = () => navigate("/employer/jobs");
+  const goAdmin = () => navigate("/admin");
 
   if (checkingSession) return <div className="loading-screen">Loading PROOF…</div>;
 
@@ -3041,12 +3170,12 @@ function App() {
       setUser(authenticatedUser);
       setUserRole(authenticatedRole || "talent");
 
-      if (authenticatedRole === "employer") {
+      if (authenticatedRole === "admin") {
+        navigate("/admin");
+      } else if (authenticatedRole === "employer") {
         navigate("/employer");
       } else if (profileData?.published && profileData?.public_slug) {
         navigate("/p/" + profileData.public_slug);
-      } else if (authenticatedRole === "admin") {
-        navigate("/admin");
       } else {
         navigate("/build");
       }
@@ -3058,15 +3187,23 @@ function App() {
       goAuth();
       return null;
     }
+    if (userRole === "admin") {
+      navigate("/admin");
+      return null;
+    }
+    if (userRole === "employer") {
+      navigate("/employer");
+      return null;
+    }
     return <Onboarding user={user} onExit={goLanding} onPublished={(slug) => navigate("/p/" + slug)} />;
   }
 
   if (route.type === "jobs") {
-    return <JobsPage user={user} userRole={userRole} onBack={goLanding} onAuth={goAuth} onApplications={goApplications} onEmployer={goEmployer} />;
+    return <JobsPage user={user} userRole={userRole} onBack={goLanding} onAuth={goAuth} onApplications={goApplications} onEmployer={goEmployer} onAdmin={goAdmin} />;
   }
 
   if (route.type === "job") {
-    return <JobDetails jobId={route.id} user={user} userRole={userRole} onBack={goJobs} onAuth={goAuth} onApplications={goApplications} onEmployer={goEmployer} />;
+    return <JobDetails jobId={route.id} user={user} userRole={userRole} onBack={goJobs} onAuth={goAuth} onApplications={goApplications} onEmployer={goEmployer} onAdmin={goAdmin} />;
   }
 
   if (route.type === "messages") {
@@ -3077,6 +3214,10 @@ function App() {
   if (route.type === "applications") {
     if (!user) {
       goAuth();
+      return null;
+    }
+    if (userRole === "admin") {
+      navigate("/admin");
       return null;
     }
     if (userRole === "employer") return <EmployerDashboard user={user} onBack={goLanding} onJobs={goEmployerJobs} />;
