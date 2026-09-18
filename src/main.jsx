@@ -336,6 +336,10 @@ function Founding100Page({ onBack, onAuth }) {
 
     if (insertError) {
       setSubmitting(false);
+      if (insertError.code === "P0001") {
+        setError("The Founding 100 is now full.");
+        return;
+      }
       if (insertError.code === "23505") {
         window.localStorage.setItem("proof-beta-role", role);
         window.localStorage.setItem("proof-beta-email", cleanEmail);
@@ -1600,6 +1604,13 @@ function JobDetails({ jobId, user, userRole, onBack, onAuth, onApplications, onE
                 <strong>Application sent.</strong>
                 <span>Your Proof has been sent for this opportunity.</span>
                 <Button className="button--dark" onClick={onApplications}>View my applications <ArrowRight size={15} /></Button>
+              </div>
+            ) : job.is_demo ? (
+              <div className="apply-success">
+                <Eye size={20} />
+                <strong>Demo opportunity</strong>
+                <span>This role is sample content for the PROOF beta and is not accepting applications.</span>
+                <Button className="button--outline" onClick={onBack}>Browse live opportunities <ArrowRight size={15} /></Button>
               </div>
             ) : application ? (
               <div className="apply-success">
