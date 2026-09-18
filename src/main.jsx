@@ -24,6 +24,7 @@ import {
   Pencil,
   Globe2,
   Upload,
+  MessageCircle,
 
 } from "lucide-react";
 import "./styles.css";
@@ -1189,7 +1190,7 @@ function JobDetails({ jobId, user, userRole, onBack, onAuth, onApplications, onE
                 <Check size={20} />
                 <strong>Already applied.</strong>
                 <span>Status: {application.status}</span>
-                <Button className="button--outline" onClick={onApplications}>View my applications</Button>
+                <div className="apply-success__actions"><Button className="button--outline" onClick={() => navigate("/messages?application=" + jobId)}>Message employer <MessageCircle size={14} /></Button><Button className="button--outline" onClick={onApplications}>View my applications</Button></div>
               </div>
             ) : (
               <>
@@ -1244,7 +1245,7 @@ function ApplicationsPage({ user, onBack, onJobs, onAuth }) {
           <button onClick={onJobs}>Jobs</button>
           <button className="jobs-nav__active">My applications</button>
         </nav>
-        <Button className="button--dark" onClick={onJobs}>Find opportunities</Button>
+        <div className="jobs-nav__right"><UnreadMessages user={user} onOpen={() => navigate("/messages")} /><Button className="button--dark" onClick={onJobs}>Find opportunities</Button></div>
       </header>
 
       <main className="applications-page">
@@ -1265,18 +1266,20 @@ function ApplicationsPage({ user, onBack, onJobs, onAuth }) {
         {!loading && !error && applications.length > 0 && (
           <div className="applications-list">
             {applications.map((application) => (
-              <button key={application.id} className="application-row" onClick={() => navigate("/jobs/" + application.jobs.id)}>
-                <div className="application-company">{(application.jobs?.companies?.name || "P").slice(0, 1).toUpperCase()}</div>
-                <div className="application-meta">
-                  <strong>{application.jobs?.title}</strong>
-                  <span>{application.jobs?.companies?.name || "Company"} · {application.jobs?.location || "Flexible"}</span>
-                </div>
-                <span className={`application-status application-status--${application.status}`}>{application.status}</span>
-                <div className="application-date">{new Date(application.created_at).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}</div>
-                <ArrowUpRight size={17} />
-              </button>
-            ))}
-          </div>
+              <article key={application.id} className="application-row">
+                <button type="button" className="application-row__main" onClick={() => navigate("/jobs/" + application.jobs.id)}>
+                  <div className="application-company">{(application.jobs?.companies?.name || "P").slice(0, 1).toUpperCase()}</div>
+                  <div className="application-meta">
+                    <strong>{application.jobs?.title}</strong>
+                    <span>{application.jobs?.companies?.name || "Company"} · {application.jobs?.location || "Flexible"}</span>
+                  </div>
+                  <span className={"application-status application-status--" + application.status}>{application.status}</span>
+                  <div className="application-date">{new Date(application.created_at).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}</div>
+                  <ArrowUpRight size={17} />
+                </button>
+                <button type="button" className="application-row__message" onClick={async () => { try { await getOrCreateConversation(user.id, application.id); navigate("/messages?application=" + application.id); } catch (err) { setError(err.message || "Could not open messages."); } }}><MessageCircle size={15} /> Message</button>
+              </article>
+            ))}         </div>
         )}
       </main>
     </div>
@@ -1284,7 +1287,322 @@ function ApplicationsPage({ user, onBack, onJobs, onAuth }) {
 }
 
 
-function EmployerHeader({ onBack, onDashboard, onJobs }) {
+
+async function getOrCreateConversation(userId, applicationId) {
+  if (!supabase || !userId || !applicationId) throw new Error("Missing conversation details.");
+
+  const existingResult = await supabase.from("conversations").select("*").eq("application_id", applicationId).maybeSingle();
+  if (existingResult.error) throw existingResult.error;
+  if (existingResult.data) return existingResult.data;
+
+  const applicationResult = await supabase
+    .from("applications")
+    .select("id, talent_id, jobs(company_id, companies(owner_id))")
+    .eq("id", applicationId)
+    .maybeSingle();
+
+  if (applicationResult.error) throw applicationResult.error;
+  const application = applicationResult.data;
+  const employerId = application?.jobs?.companies?.owner_id;
+  const talentId = application?.talent_id;
+
+  if (!application || !employerId || !talentId) throw new Error("This application cannot open a conversation yet.");
+  if (userId !== employerId && userId !== talentId) throw new Error("You are not a participant in this conversation.");
+
+  const insertResult = await supabase.from("conversations").insert({
+    application_id: applicationId,
+    employer_id: employerId,
+    talent_id: talentId,
+  }).select("*").single();
+
+  if (insertResult.error?.code === "23505") {
+    const retry = await supabase.from("conversations").select("*").eq("application_id", applicationId).single();
+    if (retry.error) throw retry.error;
+    return retry.data;
+  }
+  if (insertResult.error) throw insertResult.error;
+  return insertResult.data;
+}
+
+function UnreadMessages({ user, onOpen }) {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!supabase || !user) {
+      setCount(0);
+      return;
+    }
+    let active = true;
+    const load = async () => {
+      const { count: unreadCount } = await supabase
+        .from("messages")
+        .select("id", { count: "exact", head: true })
+        .neq("sender_id", user.id)
+        .is("read_at", null);
+      if (active) setCount(unreadCount || 0);
+    };
+    load();
+
+    const channel = supabase
+      .channel("proof-unread-" + user.id)
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, load)
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
+  return (
+    <button className="messages-nav-button" onClick={onOpen}>
+      <span>Messages</span>
+      {count > 0 && <strong>{count > 9 ? "9+" : count}</strong>}
+    </button>
+  );
+}
+
+function MessagesPage({ user, userRole, onBack, onEmployer, onJobs }) {
+  const [conversations, setConversations] = useState([]);
+  const [profiles, setProfiles] = useState({});
+  const [activeId, setActiveId] = useState("");
+  const [messages, setMessages] = useState([]);
+  const [draft, setDraft] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [messageLoading, setMessageLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+  const applicationParam = new URLSearchParams(window.location.search).get("application");
+
+  const loadConversations = async (preferredId = "") => {
+    if (!supabase || !user) return;
+
+    const result = await supabase
+      .from("conversations")
+      .select("*, applications(id, job_id, talent_id, jobs(id, title, location, companies(name, logo_url, industry)))")
+      .order("updated_at", { ascending: false });
+
+    if (result.error) {
+      setError(result.error.message || "Could not load your conversations.");
+      setLoading(false);
+      return;
+    }
+
+    const rows = result.data || [];
+    const talentIds = [...new Set(rows.map((row) => row.talent_id).filter(Boolean))];
+    let profileRows = [];
+
+    if (talentIds.length) {
+      const profileResult = await supabase
+        .from("profiles")
+        .select("id, name, headline, location, public_slug, published")
+        .in("id", talentIds);
+      if (profileResult.error) {
+        setError(profileResult.error.message || "Could not load conversation participants.");
+        setLoading(false);
+        return;
+      }
+      profileRows = profileResult.data || [];
+    }
+
+    const profileMap = {};
+    profileRows.forEach((profile) => { profileMap[profile.id] = profile; });
+
+    if (applicationParam) {
+      const target = rows.find((row) => row.application_id === applicationParam);
+      if (target) setActiveId(target.id);
+    } else if (preferredId && rows.some((row) => row.id === preferredId)) {
+      setActiveId(preferredId);
+    } else if (!activeId && rows[0]) {
+      setActiveId(rows[0].id);
+    } else if (activeId && !rows.some((row) => row.id === activeId)) {
+      setActiveId(rows[0]?.id || "");
+    }
+
+    setConversations(rows);
+    setProfiles(profileMap);
+    setLoading(false);
+  };
+
+  const loadMessages = async (conversationId) => {
+    if (!supabase || !conversationId || !user) {
+      setMessages([]);
+      return;
+    }
+
+    setMessageLoading(true);
+    const result = await supabase
+      .from("messages")
+      .select("*")
+      .eq("conversation_id", conversationId)
+      .order("created_at", { ascending: true });
+
+    if (result.error) {
+      setError(result.error.message || "Could not load messages.");
+      setMessageLoading(false);
+      return;
+    }
+
+    const nextMessages = result.data || [];
+    const unreadIds = nextMessages
+      .filter((message) => message.sender_id !== user.id && !message.read_at)
+      .map((message) => message.id);
+
+    if (unreadIds.length) {
+      await supabase.from("messages").update({ read_at: new Date().toISOString() }).in("id", unreadIds);
+    }
+
+    const readNow = new Date().toISOString();
+    setMessages(nextMessages.map((message) => unreadIds.includes(message.id) ? { ...message, read_at: readNow } : message));
+    setMessageLoading(false);
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    async function boot() {
+      if (applicationParam && user) {
+        try {
+          const conversation = await getOrCreateConversation(user.id, applicationParam);
+          if (!cancelled) setActiveId(conversation.id);
+        } catch (err) {
+          if (!cancelled) setError(err.message || "Could not open this conversation.");
+        }
+      }
+      await loadConversations();
+    }
+    boot();
+    return () => { cancelled = true; };
+  }, [user, applicationParam]);
+
+  useEffect(() => { loadMessages(activeId); }, [activeId]);
+
+  useEffect(() => {
+    if (!supabase || !user || !activeId) return undefined;
+    const channel = supabase
+      .channel("proof-conversation-" + activeId)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: "conversation_id=eq." + activeId }, async () => {
+        await loadMessages(activeId);
+        await loadConversations(activeId);
+      })
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [activeId, user?.id]);
+
+  const openConversation = (conversation) => {
+    setActiveId(conversation.id);
+    navigate("/messages?application=" + conversation.application_id);
+  };
+
+  const sendMessage = async (event) => {
+    event.preventDefault();
+    const body = draft.trim();
+    if (!body || !activeId || !supabase || !user) return;
+
+    setSending(true);
+    setError("");
+
+    const result = await supabase.from("messages").insert({
+      conversation_id: activeId,
+      sender_id: user.id,
+      body,
+    }).select("*").single();
+
+    if (result.error) {
+      setError(result.error.message || "Could not send your message.");
+    } else {
+      setDraft("");
+      await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", activeId);
+      setMessages((current) => current.some((message) => message.id === result.data.id) ? current : [...current, result.data]);
+      await loadConversations(activeId);
+    }
+    setSending(false);
+  };
+
+  const activeConversation = conversations.find((conversation) => conversation.id === activeId) || null;
+  const otherTalent = activeConversation ? profiles[activeConversation.talent_id] : null;
+  const otherName = userRole === "employer"
+    ? (otherTalent?.name || "Candidate")
+    : (activeConversation?.applications?.jobs?.companies?.name || "Employer");
+  const otherHeadline = userRole === "employer"
+    ? (otherTalent?.headline || "PROOF candidate")
+    : (activeConversation?.applications?.jobs?.title || "Application conversation");
+
+  return (
+    <div className="jobs-shell">
+      <header className="jobs-nav">
+        <button className="jobs-back" onClick={onBack}><ArrowLeft size={16} /> Back</button>
+        <a className="brand" href="#" onClick={(e) => { e.preventDefault(); onBack(); }}>PROOF<span>.</span></a>
+        <div className="jobs-nav__right">
+          {userRole === "employer"
+            ? <Button className="button--outline" onClick={onEmployer}>Employer dashboard</Button>
+            : <Button className="button--outline" onClick={onJobs}>Find opportunities</Button>}
+        </div>
+      </header>
+
+      <main className="messages-page">
+        <section className="messages-head">
+          <div><span className="eyebrow">YOUR INBOX</span><h1>Talk to people.<br /><em>Move things forward.</em></h1><p>Every conversation on PROOF is attached to a real application.</p></div>
+          <div className="messages-head__note"><span className="jobs-hero__dot" /> Secure application conversations</div>
+        </section>
+
+        {error && <div className="error-banner messages-error">{error}</div>}
+
+        {loading ? <div className="jobs-state">Loading your inbox…</div> : (
+          <div className="messages-layout">
+            <aside className="conversation-list">
+              {conversations.length === 0 ? (
+                <div className="messages-empty-small"><span className="eyebrow">NO CONVERSATIONS</span><strong>Your messages will appear here.</strong><p>Apply for a role or contact a candidate from an application.</p></div>
+              ) : conversations.map((conversation) => {
+                const profile = profiles[conversation.talent_id];
+                const conversationName = userRole === "employer" ? (profile?.name || "Candidate") : (conversation.applications?.jobs?.companies?.name || "Employer");
+                const conversationRole = userRole === "employer" ? (profile?.headline || "PROOF candidate") : (conversation.applications?.jobs?.title || "Application");
+                return (
+                  <button type="button" key={conversation.id} className={"conversation-row" + (conversation.id === activeId ? " is-active" : "")} onClick={() => openConversation(conversation)}>
+                    <div className="conversation-avatar">{conversationName.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</div>
+                    <div className="conversation-meta"><strong>{conversationName}</strong><span>{conversationRole}</span><small>{conversation.applications?.jobs?.title || "Application"}</small></div>
+                    <ChevronRight size={16} />
+                  </button>
+                );
+              })}
+            </aside>
+
+            <section className="messages-panel">
+              {!activeConversation ? (
+                <div className="messages-panel__empty"><MessageCircle size={28} /><strong>Select a conversation.</strong><span>Choose an application conversation to see the thread.</span></div>
+              ) : (
+                <>
+                  <div className="messages-panel__head">
+                    <div className="conversation-avatar conversation-avatar--large">{otherName.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</div>
+                    <div><strong>{otherName}</strong><span>{otherHeadline}</span><small>{activeConversation.applications?.jobs?.title || "Application"}</small></div>
+                  </div>
+                  <div className="message-thread">
+                    {messageLoading ? <div className="jobs-state">Loading thread…</div> : messages.length === 0 ? (
+                      <div className="message-thread__empty"><span className="eyebrow">START HERE</span><strong>Send the first message.</strong><p>Keep it specific to the role and application.</p></div>
+                    ) : messages.map((message) => (
+                      <div key={message.id} className={"message-bubble-row" + (message.sender_id === user.id ? " is-mine" : "")}>
+                        <div className={"message-bubble" + (message.sender_id === user.id ? " is-mine" : "")}>
+                          <p>{message.body}</p>
+                          <small>{new Date(message.created_at).toLocaleString("en-NG", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</small>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <form className="message-compose" onSubmit={sendMessage}>
+                    <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows="3" maxLength="2000" placeholder={"Message " + otherName + " about this application…"} />
+                    <div><span>Keep conversations professional and role-specific.</span><Button className="button--dark button--large" disabled={sending || !draft.trim()}>{sending ? "Sending..." : "Send message"} <ArrowUpRight size={17} /></Button></div>
+                  </form>
+                </>
+              )}
+            </section>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function EmployerHeader({ onBack, onDashboard, onJobs, user }) {
   return (
     <header className="employer-nav">
       <a className="brand" href="#" onClick={(e) => { e.preventDefault(); onBack(); }}>PROOF<span>.</span></a>
@@ -1293,6 +1611,7 @@ function EmployerHeader({ onBack, onDashboard, onJobs }) {
         <button onClick={onJobs}>Jobs</button>
       </nav>
       <div className="employer-nav__actions">
+        <UnreadMessages user={user} onOpen={() => navigate("/messages")} />
         <Button className="button--dark" onClick={() => navigate("/employer/jobs/new")}>Post a job <Plus size={16} /></Button>
       </div>
     </header>
@@ -1565,7 +1884,7 @@ function EmployerDashboard({ user, onBack, onJobs }) {
 
   return (
     <div className="jobs-shell">
-      <EmployerHeader onBack={onBack} onDashboard={() => navigate("/employer")} onJobs={onJobs} />
+      <EmployerHeader onBack={onBack} onDashboard={() => navigate("/employer")} onJobs={onJobs} user={user} />
 
       <main className="employer-page">
         <section className="employer-hero">
@@ -1707,7 +2026,7 @@ function EmployerJobsPage({ user, onBack }) {
 
   return (
     <div className="jobs-shell">
-      <EmployerHeader onBack={onBack} onDashboard={() => navigate("/employer")} onJobs={() => navigate("/employer/jobs")} />
+      <EmployerHeader onBack={onBack} onDashboard={() => navigate("/employer")} onJobs={() => navigate("/employer/jobs")} user={user} />
       <main className="employer-page">
         <section className="employer-section-head employer-section-head--first">
           <div><span className="eyebrow">YOUR JOBS</span><h1>Manage every role.</h1><p>Publish, pause and review the opportunities your company has put on PROOF.</p></div>
@@ -2113,6 +2432,7 @@ function EmployerApplicants({ user, jobId, onBack, onDashboard }) {
                       {candidate?.public_slug && candidate.published ? (
                         <button className="button button--outline button--small" onClick={() => navigate("/p/" + candidate.public_slug)}>View full Proof <ArrowUpRight size={14} /></button>
                       ) : <span className="applicant-private-note">Candidate Proof is not published.</span>}
+                      <button className="button button--outline button--small" onClick={async () => { try { await getOrCreateConversation(user.id, application.id); navigate("/messages?application=" + application.id); } catch (err) { setError(err.message || "Could not open messages."); } }}>Message candidate <MessageCircle size={14} /></button>
                       <label className="applicant-status-select">Move to
                         <select value={application.status} onChange={(e) => updateStatus(application.id, e.target.value)}>
                           <option value="applied">Applied</option>
@@ -2352,6 +2672,7 @@ function App() {
     if (path === "/employer/onboarding") return { type: "employerOnboarding" };
     if (path === "/employer/jobs") return { type: "employerJobs" };
     if (path === "/employer") return { type: "employer" };
+    if (path === "/messages") return { type: "messages" };
     if (path === "/candidate/applications") return { type: "applications" };
     if (new URLSearchParams(window.location.search).get("auth") === "1") return { type: "auth" };
     return { type: "landing" };
@@ -2406,6 +2727,7 @@ function App() {
   const goAuth = () => navigate("/?auth=1");
   const goJobs = () => navigate("/jobs");
   const goApplications = () => navigate("/candidate/applications");
+  const goMessages = () => navigate("/messages");
   const goEmployer = () => navigate("/employer");
   const goEmployerJobs = () => navigate("/employer/jobs");
 
@@ -2437,6 +2759,11 @@ function App() {
 
   if (route.type === "job") {
     return <JobDetails jobId={route.id} user={user} userRole={userRole} onBack={goJobs} onAuth={goAuth} onApplications={goApplications} onEmployer={goEmployer} />;
+  }
+
+  if (route.type === "messages") {
+    if (!user) { goAuth(); return null; }
+    return <MessagesPage user={user} userRole={userRole} onBack={goLanding} onEmployer={goEmployer} onJobs={goJobs} />;
   }
 
   if (route.type === "applications") {
