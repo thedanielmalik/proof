@@ -769,7 +769,13 @@ function Onboarding({ onExit, user, onPublished }) {
     setSaveError("");
 
     try {
-      const publicSlug = makePublicSlug(profile.name, user.id);
+      const existingProfileResult = await supabase
+        .from("profiles")
+        .select("public_slug")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (existingProfileResult.error) throw existingProfileResult.error;
+      const publicSlug = existingProfileResult.data?.public_slug || makePublicSlug(profile.name, user.id);
       let uploadedVideoUrl = profile.videoUrl || null;
 
       if (videoBlob) {
@@ -790,7 +796,6 @@ function Onboarding({ onExit, user, onPublished }) {
 
       const { error: profileError } = await supabase.from("profiles").upsert({
         id: user.id,
-        role: "talent",
         name: profile.name,
         public_slug: publicSlug,
         location: profile.location,
@@ -1122,7 +1127,15 @@ function ProofVideoStep({ videoPreview, setVideoPreview, setVideoBlob, videoName
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
       chunksRef.current = [];
-      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus") ? "video/webm;codecs=vp9,opus" : "video/webm";
+      if (!window.MediaRecorder) throw new Error("Video recording is not supported in this browser.");
+      const mimeCandidates = [
+        "video/webm;codecs=vp9,opus",
+        "video/webm;codecs=vp8,opus",
+        "video/mp4",
+        "video/webm",
+      ];
+      const mimeType = mimeCandidates.find((type) => MediaRecorder.isTypeSupported(type));
+      if (!mimeType) throw new Error("Video recording is not supported in this browser.");
       const recorder = new MediaRecorder(stream, { mimeType });
       recorderRef.current = recorder;
       recorder.ondataavailable = (event) => { if (event.data.size) chunksRef.current.push(event.data); };
@@ -1386,6 +1399,7 @@ function JobDetails({ jobId, user, userRole, onBack, onAuth, onApplications, onE
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [talentProfilePublished, setTalentProfilePublished] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -1406,7 +1420,15 @@ function JobDetails({ jobId, user, userRole, onBack, onAuth, onApplications, onE
         return;
       }
       let existing = null;
-      if (user) {
+      if (user && userRole === "talent") {
+        const profileResult = await supabase
+          .from("profiles")
+          .select("published")
+          .eq("id", user.id)
+          .maybeSingle();
+        if (profileResult.error) throw profileResult.error;
+        setTalentProfilePublished(Boolean(profileResult.data?.published));
+
         const result = await supabase
           .from("applications")
           .select("*")
@@ -1424,12 +1446,16 @@ function JobDetails({ jobId, user, userRole, onBack, onAuth, onApplications, onE
     }
     load();
     return () => { cancelled = true; };
-  }, [jobId, user]);
+  }, [jobId, user, userRole]);
 
   const apply = async () => {
     if (!user) { onAuth(); return; }
     if (userRole !== "talent") {
       setError("Only talent accounts can apply for opportunities.");
+      return;
+    }
+    if (talentProfilePublished !== true) {
+      setError("Publish your Proof before applying for an opportunity.");
       return;
     }
     if (!supabase) return;
@@ -1529,6 +1555,13 @@ function JobDetails({ jobId, user, userRole, onBack, onAuth, onApplications, onE
                 <strong>Employer account</strong>
                 <span>Employer accounts can post and manage roles, but cannot apply as candidates.</span>
                 <Button className="button--dark" onClick={onEmployer}>Open employer workspace <ArrowRight size={15} /></Button>
+              </div>
+            ) : user && userRole === "talent" && talentProfilePublished !== true ? (
+              <div className="apply-success">
+                <Clock3 size={20} />
+                <strong>Finish your Proof first.</strong>
+                <span>Publish your Proof so employers can review what you can do before you apply.</span>
+                <Button className="button--dark" onClick={() => navigate("/build")}>Finish my Proof <ArrowRight size={15} /></Button>
               </div>
             ) : (
               <>
