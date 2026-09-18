@@ -88,23 +88,19 @@ with check (
 revoke update on table public.messages from authenticated;
 grant update(read_at) on table public.messages to authenticated;
 
-create or replace function public.touch_conversation_from_message()
-returns trigger
-language plpgsql
-set search_path = public
-as $function$
-begin
-  update public.conversations set updated_at = now() where id = new.conversation_id;
-  return new;
-end;
-$function$;
-
-drop trigger if exists messages_touch_conversation on public.messages;
-create trigger messages_touch_conversation
-after insert on public.messages
-for each row execute function public.touch_conversation_from_message();
+create policy "Participants can update conversation timestamp"
+on public.conversations for update to authenticated
+using (
+  (select auth.uid()) = employer_id
+  or (select auth.uid()) = talent_id
+)
+with check (
+  (select auth.uid()) = employer_id
+  or (select auth.uid()) = talent_id
+);
 
 revoke update on table public.conversations from authenticated;
+grant update(updated_at) on table public.conversations to authenticated;
 
 do $$
 begin
