@@ -121,6 +121,7 @@ function LandingPage({ onStart, onHire }) {
           <button onClick={() => scrollTo("how")}>How it works</button>
           <button onClick={() => scrollTo("talent")}>For talent</button>
           <button onClick={() => scrollTo("employers")}>For employers</button>
+          <button onClick={() => navigate("/jobs")}>Jobs</button>
         </nav>
         <div className="nav__actions">
           <button className="button button--ghost" onClick={onStart}>Sign in</button>
@@ -932,23 +933,23 @@ function JobCard({ job, onOpen }) {
   );
 }
 
-function JobsHeader({ onBack, onApplications, user }) {
+function JobsHeader({ onBack, onApplications, onEmployer, user, userRole }) {
   return (
     <header className="jobs-nav">
       <a className="brand" href="#" onClick={(e) => { e.preventDefault(); onBack(); }}>PROOF<span>.</span></a>
       <nav className="jobs-nav__links">
         <button className="jobs-nav__active" onClick={() => navigate("/jobs")}>Jobs</button>
-        {user && <button onClick={onApplications}>My applications</button>}
+        {user && (userRole === "employer" ? <button onClick={onEmployer}>Employer dashboard</button> : <button onClick={onApplications}>My applications</button>)}
         <button onClick={() => navigate("/#how")}>How it works</button>
       </nav>
       <div className="jobs-nav__actions">
-        {user ? <Button className="button--outline" onClick={onApplications}>Applications</Button> : <Button className="button--dark" onClick={() => window.dispatchEvent(new CustomEvent("proof-auth"))}>Build my Proof</Button>}
+        {user ? (userRole === "employer" ? <Button className="button--outline" onClick={onEmployer}>Employer dashboard</Button> : <Button className="button--outline" onClick={onApplications}>Applications</Button>) : <Button className="button--dark" onClick={() => window.dispatchEvent(new CustomEvent("proof-auth"))}>Build my Proof</Button>}
       </div>
     </header>
   );
 }
 
-function JobsPage({ user, onBack, onAuth, onApplications }) {
+function JobsPage({ user, userRole, onBack, onAuth, onApplications, onEmployer }) {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -1002,7 +1003,7 @@ function JobsPage({ user, onBack, onAuth, onApplications }) {
 
   return (
     <div className="jobs-shell">
-      <JobsHeader user={user} onBack={onBack} onApplications={onApplications} />
+      <JobsHeader user={user} userRole={userRole} onBack={onBack} onApplications={onApplications} onEmployer={onEmployer} />
       <main className="jobs-page">
         <section className="jobs-hero">
           <div>
@@ -1063,7 +1064,7 @@ function JobsPage({ user, onBack, onAuth, onApplications }) {
   );
 }
 
-function JobDetails({ jobId, user, onBack, onAuth, onApplications }) {
+function JobDetails({ jobId, user, userRole, onBack, onAuth, onApplications, onEmployer }) {
   const [job, setJob] = useState(null);
   const [application, setApplication] = useState(null);
   const [message, setMessage] = useState("");
@@ -1139,7 +1140,7 @@ function JobDetails({ jobId, user, onBack, onAuth, onApplications }) {
       <header className="jobs-nav">
         <button className="jobs-back" onClick={onBack}><ArrowLeft size={16} /> All jobs</button>
         <a className="brand" href="#" onClick={(e) => { e.preventDefault(); onBack(); }}>PROOF<span>.</span></a>
-        <div>{user ? <Button className="button--outline" onClick={onApplications}>My applications</Button> : <Button className="button--dark" onClick={onAuth}>Build my Proof</Button>}</div>
+        <div>{user ? (userRole === "employer" ? <Button className="button--outline" onClick={onEmployer}>Employer dashboard</Button> : <Button className="button--outline" onClick={onApplications}>My applications</Button>) : <Button className="button--dark" onClick={onAuth}>Build my Proof</Button>}</div>
       </header>
 
       <main className="job-details-page">
@@ -2431,21 +2432,26 @@ function App() {
   }
 
   if (route.type === "jobs") {
-    return <JobsPage user={user} onBack={goLanding} onAuth={goAuth} onApplications={goApplications} />;
+    return <JobsPage user={user} userRole={userRole} onBack={goLanding} onAuth={goAuth} onApplications={goApplications} onEmployer={goEmployer} />;
   }
 
   if (route.type === "job") {
-    return <JobDetails jobId={route.id} user={user} onBack={goJobs} onAuth={goAuth} onApplications={goApplications} />;
+    return <JobDetails jobId={route.id} user={user} userRole={userRole} onBack={goJobs} onAuth={goAuth} onApplications={goApplications} onEmployer={goEmployer} />;
   }
 
   if (route.type === "applications") {
+    if (!user) {
+      goAuth();
+      return null;
+    }
+    if (userRole === "employer") return <EmployerDashboard user={user} onBack={goLanding} onJobs={goEmployerJobs} />;
     return <ApplicationsPage user={user} onBack={goLanding} onJobs={goJobs} onAuth={goAuth} />;
   }
 
   if (route.type === "employerOnboarding" || route.type === "employer" || route.type === "employerJobs" || route.type === "employerJobForm" || route.type === "employerApplicants") {
     if (!user) { goAuth(); return null; }
     if (userRole !== "employer") {
-      return <div className="public-error"><a className="brand" href="#" onClick={(e) => { e.preventDefault(); goLanding(); }}>PROOF<span>.</span></a><div><span className="eyebrow">EMPLOYER AREA</span><h1>This space is for hiring accounts.</h1><p style={{maxWidth: "520px", margin: "0 auto 24px", color: "#777872", lineHeight: 1.6}}>Your current account is set up for talent. Sign out and create an employer account to post roles and review applicants.</p><Button className="button--dark button--large" onClick={goLanding}>Back to PROOF <ArrowUpRight size={18} /></Button></div></div>;
+      return <div className="public-error"><a className="brand" href="#" onClick={(e) => { e.preventDefault(); goLanding(); }}>PROOF<span>.</span></a><div><span className="eyebrow">EMPLOYER AREA</span><h1>This space is for hiring accounts.</h1><p style={{maxWidth: "520px", margin: "0 auto 24px", color: "#777872", lineHeight: 1.6}}>Your current account is set up for talent. Sign out and create an employer account to post roles and review applicants.</p><div style={{display:"flex", gap:"9px", justifyContent:"center", flexWrap:"wrap"}}><Button className="button--dark button--large" onClick={goLanding}>Back to PROOF <ArrowUpRight size={18} /></Button><Button className="button--outline button--large" onClick={async () => { await supabase?.auth.signOut(); goAuth(); }}>Sign out</Button></div></div></div>;
     }
     if (route.type === "employerOnboarding") return <EmployerOnboarding user={user} onBack={goEmployer} onComplete={() => navigate("/employer")} />;
     if (route.type === "employer") return <EmployerDashboard user={user} onBack={goLanding} onJobs={goEmployerJobs} />;
@@ -2454,7 +2460,6 @@ function App() {
     return <EmployerApplicants user={user} jobId={route.id} onBack={goEmployerJobs} onDashboard={goEmployer} />;
   }
 
-  if (route.type === "applications" && userRole === "employer") return <EmployerDashboard user={user} onBack={goLanding} onJobs={goEmployerJobs} />;
 
   return <LandingPage onStart={() => user ? navigate("/build") : goAuth()} onHire={() => user && userRole === "employer" ? goEmployer() : goAuth()} />;
 }
