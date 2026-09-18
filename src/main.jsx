@@ -1158,18 +1158,16 @@ function ProofVideoStep({ videoPreview, setVideoPreview, setVideoBlob, videoName
   }, [videoPreview]);
 
   useEffect(() => {
-    if (mode !== "recording") return;
+    if (mode !== "recording") return undefined;
     const interval = window.setInterval(() => {
-      setSeconds((value) => {
-        if (value >= 59) {
-          stopRecording();
-          return 60;
-        }
-        return value + 1;
-      });
+      setSeconds((value) => Math.min(value + 1, 60));
     }, 1000);
     return () => window.clearInterval(interval);
   }, [mode]);
+
+  useEffect(() => {
+    if (mode === "recording" && seconds >= 60) stopRecording();
+  }, [mode, seconds]);
 
   const startRecording = async () => {
     setError("");
@@ -1203,8 +1201,14 @@ function ProofVideoStep({ videoPreview, setVideoPreview, setVideoBlob, videoName
       recorder.start();
       setSeconds(0);
       setMode("recording");
-    } catch {
-      setError("Camera access was blocked or unavailable. You can still upload a video.");
+    } catch (error) {
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      recorderRef.current = null;
+      setMode("idle");
+      setError(error?.message === "Video recording is not supported in this browser."
+        ? "Video recording is not supported in this browser. You can still upload a video."
+        : "Camera access was blocked or unavailable. You can still upload a video.");
     }
   };
 
