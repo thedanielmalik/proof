@@ -3647,3 +3647,9 @@ a {
   .admin-funnel-grid { grid-template-columns: 1fr; }
   .admin-hero h1 { font-size: 44px; }
 }
+
+.public-role-summary {
+  margin: 0 0 10px;
+  font-weight: 700;
+  color: #171815;
+}
