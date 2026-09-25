@@ -45,11 +45,7 @@ export default function TikTokAdsLanding() {
 
       <nav className="ttk-nav">
         <a href="#top" className="ttk-brand" aria-label="Lagos Digital Marketing Academy">
-          <span className="ttk-logo-mark">LD<span>M</span>A</span>
-          <span className="ttk-brand-copy">
-            <strong>Lagos Digital Marketing Academy</strong>
-            <small>Strategy. Skills. Results.</small>
-          </span>
+          <img className="ttk-logo-image" src="/assets/ldma-logo.png" alt="Lagos Digital Marketing Academy" />
         </a>
         <button className="ttk-nav-cta" onClick={openWhatsApp}>
           Reserve My Seat <ArrowRight size={17} />
@@ -83,19 +79,21 @@ export default function TikTokAdsLanding() {
             <div className="ttk-ad-card">
               <div className="ttk-ad-card-top">
                 <span className="ttk-ad-dot" />
-                <span>FROM THE AD</span>
+                <span>YOUR TIKTOK AD</span>
                 <span className="ttk-ad-time">43s</span>
               </div>
-              <div className="ttk-ad-frame">
-                <div className="ttk-ad-word ttk-word-one">LOCALITY.</div>
-                <div className="ttk-ad-word ttk-word-two">WHEREVER.</div>
-                <div className="ttk-ad-word ttk-word-three">MARKETING.</div>
-                <div className="ttk-ad-word ttk-word-four">ADS.</div>
-                <div className="ttk-ad-word ttk-word-five">LEARN THIS.</div>
-                <div className="ttk-ad-lower">
-                  <strong>Run TikTok ads that convert.</strong>
-                  <span>100% Practical Training</span>
-                </div>
+              <div className="ttk-ad-frame ttk-video-frame">
+                <video
+                  className="ttk-ad-video"
+                  src="/assets/tiktok-training-ad.mp4"
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  controls
+                  preload="metadata"
+                  aria-label="TikTok Ads training promotional video"
+                />
               </div>
             </div>
           </div>
