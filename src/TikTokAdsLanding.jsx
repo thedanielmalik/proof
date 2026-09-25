@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { ArrowRight, Check, CalendarDays, MessageCircle, MapPin, Clock3, Zap } from "lucide-react";
 import "./tiktok-ads.css";
 
-const WHATSAPP_LINK = "https://wa.me/message/RZ65LNURQR2TB1";
+const REGISTRATION_LINK = "https://selar.com/998n289191";
 
 const learnItems = [
   "Set up TikTok Ads Manager the right way",
@@ -20,8 +20,8 @@ const fitItems = [
   "Startups and growing brands ready to advertise",
 ];
 
-function openWhatsApp() {
-  window.open(WHATSAPP_LINK, "_blank", "noopener,noreferrer");
+function openRegistration() {
+  window.open(REGISTRATION_LINK, "_blank", "noopener,noreferrer");
 }
 
 export default function TikTokAdsLanding() {
@@ -47,7 +47,7 @@ export default function TikTokAdsLanding() {
         <a href="#top" className="ttk-brand" aria-label="Lagos Digital Marketing Academy">
           <img className="ttk-logo-image" src="/assets/ldma-logo.png" alt="Lagos Digital Marketing Academy" />
         </a>
-        <button className="ttk-nav-cta" onClick={openWhatsApp}>
+        <button className="ttk-nav-cta" onClick={openRegistration}>
           Reserve My Seat <ArrowRight size={17} />
         </button>
       </nav>
@@ -65,15 +65,15 @@ export default function TikTokAdsLanding() {
               <div className="ttk-hero-proof">
                 <div className="ttk-proof-item"><Zap size={16} /> 100% practical</div>
                 <div className="ttk-proof-item"><CalendarDays size={16} /> Friday + Saturday</div>
-                <div className="ttk-proof-item"><MessageCircle size={16} /> WhatsApp registration</div>
+                <div className="ttk-proof-item"><MessageCircle size={16} /> Online registration</div>
               </div>
 
-              <button className="ttk-primary-cta" onClick={openWhatsApp}>
+              <button className="ttk-primary-cta" onClick={openRegistration}>
                 <span>JOIN THE TRAINING</span>
                 <ArrowRight size={20} />
               </button>
 
-              <p className="ttk-microcopy">Limited class capacity. Click to register directly on WhatsApp.</p>
+              <p className="ttk-microcopy">Limited early-bird slots. Reserve your seat online.</p>
             </div>
 
             <div className="ttk-ad-card">
@@ -155,17 +155,17 @@ export default function TikTokAdsLanding() {
                 <div className="ttk-day-meta"><Clock3 size={17} /> Exact time shared with registered participants</div>
               </article>
 
-              <article className="ttk-day-card ttk-day-physical">
+              <article className="ttk-day-card ttk-day-virtual">
                 <div className="ttk-day-top">
                   <span className="ttk-day-label">DAY 02</span>
-                  <span className="ttk-format">PHYSICAL</span>
+                  <span className="ttk-format">VIRTUAL</span>
                 </div>
                 <div className="ttk-date">SAT · 03 OCT 2026</div>
                 <h3>Build and launch.</h3>
                 <p>
-                  Come in with your questions and build campaigns hands-on. Practical exercises, implementation and optimisation with guidance.
+                  Build campaigns hands-on from wherever you are. Practical exercises, implementation and optimisation with live guidance.
                 </p>
-                <div className="ttk-day-meta"><MapPin size={17} /> Lagos • exact physical venue shared with registered participants</div>
+                <div className="ttk-day-meta"><Clock3 size={17} /> Live virtual training</div>
               </article>
             </div>
 
@@ -200,13 +200,13 @@ export default function TikTokAdsLanding() {
             <span className="ttk-section-kicker ttk-kicker-light">YOUR NEXT CUSTOMER COULD BE ON TIKTOK</span>
             <h2>Don't leave your sales to chance.</h2>
             <p>Learn the strategy. Build the campaign. Know what to do next.</p>
-            <button className="ttk-primary-cta ttk-primary-cta-light" onClick={openWhatsApp}>
-              <span>REGISTER ON WHATSAPP</span>
+            <button className="ttk-primary-cta ttk-primary-cta-light" onClick={openRegistration}>
+              <span>RESERVE MY SEAT</span>
               <ArrowRight size={20} />
             </button>
             <div className="ttk-final-date">
               <span><CalendarDays size={17} /> 2–3 October 2026</span>
-              <span><MessageCircle size={17} /> WhatsApp registration</span>
+              <span><MessageCircle size={17} /> Online registration</span>
             </div>
           </div>
         </section>
@@ -224,7 +224,7 @@ export default function TikTokAdsLanding() {
       </footer>
 
       <div className="ttk-mobile-cta">
-        <button onClick={openWhatsApp}><MessageCircle size={19} /> Reserve My Seat</button>
+        <button onClick={openRegistration}><MessageCircle size={19} /> Reserve My Seat</button>
       </div>
     </div>
   );
