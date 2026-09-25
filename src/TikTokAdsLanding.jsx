@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { ArrowRight, Check, CalendarDays, MessageCircle, MapPin, Clock3, Zap } from "lucide-react";
 import "./tiktok-ads.css";
 
-const WHATSAPP_LINK = "https://wa.me/2347088537842?text=Hi%20LDMA%2C%20I%27m%20coming%20from%20TikTok%20and%20I%20want%20to%20register%20for%20the%20TikTok%20Ads%20Training%20on%20October%202-3%2C%202026.";
+const WHATSAPP_LINK = "https://wa.me/message/RZ65LNURQR2TB1";
 
 const learnItems = [
   "Set up TikTok Ads Manager the right way",
