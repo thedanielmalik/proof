@@ -33,6 +33,7 @@ import {
 import "./styles.css";
 import { supabase } from "./lib/supabase";
 import AdminPage from "./AdminPage";
+import TikTokAdsLanding from "./TikTokAdsLanding";
 
 const demoSkills = ["Digital Marketing", "Content", "Strategy"];
 
@@ -3188,6 +3189,7 @@ class AppErrorBoundary extends React.Component {
 function App() {
   const getRoute = () => {
     const path = window.location.pathname;
+    if (path === "/tiktok-ads" || path === "/tiktok-ads/") return { type: "tiktokAds" };
     const publicMatch = path.match(/^\/p\/([^/]+)/);
     const jobMatch = path.match(/^\/jobs\/([^/]+)/);
     if (publicMatch) return { type: "public", slug: publicMatch[1] };
@@ -3312,6 +3314,8 @@ function App() {
   const goEmployer = () => navigate("/employer");
   const goEmployerJobs = () => navigate("/employer/jobs");
   const goAdmin = () => navigate("/admin");
+
+  if (route.type === "tiktokAds") return <TikTokAdsLanding />;
 
   if (checkingSession) return <div className="loading-screen">Loading PROOF…</div>;
 
