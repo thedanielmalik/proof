@@ -89,7 +89,7 @@ export default function TikTokAdsLanding() {
               </div>
 
               <button className="ttk-primary-cta" onClick={openRegistration}>
-                <span>RESERVE MY SEAT</span>
+                <span>RESERVE MY SLOT</span>
                 <ArrowRight size={20} />
               </button>
 
@@ -280,7 +280,7 @@ export default function TikTokAdsLanding() {
             <div className="ttk-investment-inner">
               <div>
                 <span className="ttk-section-kicker">INVESTMENT</span>
-                <h2>Reserve your seat before the Early Bird closes.</h2>
+                <h2>Reserve your slot before the Early Bird closes.</h2>
                 <p>Early Bird is ₦10,000. The normal fee is ₦15,000.</p>
               </div>
               <div className="ttk-price-box">
@@ -302,7 +302,7 @@ export default function TikTokAdsLanding() {
             <h2>Stop boosting blindly. Start advertising with a plan.</h2>
             <p>2 days. Live virtual training. Practical learning. Book. Recording. Certificate.</p>
             <button className="ttk-primary-cta ttk-primary-cta-light" onClick={openRegistration}>
-              <span>RESERVE MY SEAT</span>
+              <span>RESERVE MY SLOT</span>
               <ArrowRight size={20} />
             </button>
             <div className="ttk-final-date">
