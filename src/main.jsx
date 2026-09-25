@@ -3189,7 +3189,11 @@ class AppErrorBoundary extends React.Component {
 function App() {
   const getRoute = () => {
     const path = window.location.pathname;
-    if (path === "/tiktok-ads" || path === "/tiktok-ads/") return { type: "tiktokAds" };
+    const host = window.location.hostname.toLowerCase();
+    const isTikTokVercelProject = host.startsWith("ldma-tiktok-ads");
+    if (path === "/tiktok-ads" || path === "/tiktok-ads/" || (isTikTokVercelProject && (path === "/" || path === ""))) {
+      return { type: "tiktokAds" };
+    }
     const publicMatch = path.match(/^\/p\/([^/]+)/);
     const jobMatch = path.match(/^\/jobs\/([^/]+)/);
     if (publicMatch) return { type: "public", slug: publicMatch[1] };
