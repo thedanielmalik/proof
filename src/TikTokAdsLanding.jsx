@@ -41,7 +41,7 @@ const inclusions = [
 ];
 
 function openRegistration() {
-  window.open(REGISTRATION_LINK, "_blank", "noopener,noreferrer");
+  window.location.assign(REGISTRATION_LINK);
 }
 
 export default function TikTokAdsLanding() {
