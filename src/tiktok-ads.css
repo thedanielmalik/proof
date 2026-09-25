@@ -292,3 +292,51 @@
   .ttk-footer-contact { text-align: left; }
   .ttk-mobile-cta { display: block; }
 }
+
+/* Virtual Plus expanded content */
+.ttk-learn-grid-wide { grid-template-columns: repeat(4, 1fr); }
+.ttk-outcomes { padding: 100px 28px; background: #f5f3ee; }
+.ttk-section-heading-dark { color: var(--ink); }
+.ttk-section-heading-dark > p { color: var(--muted); }
+.ttk-outcome-grid { margin-top: 44px; display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
+.ttk-outcome-card { padding: 26px; min-height: 245px; border: 1px solid var(--line); border-radius: 22px; background: #fff; }
+.ttk-outcome-number { display: inline-flex; width: 38px; height: 38px; border-radius: 50%; align-items: center; justify-content: center; background: #111; color: #fff; font-size: 10px; font-weight: 900; }
+.ttk-outcome-card h3 { font-family: "Space Grotesk", sans-serif; font-size: 24px; letter-spacing: -.04em; margin: 48px 0 10px; }
+.ttk-outcome-card p { color: var(--muted); line-height: 1.55; font-size: 13px; margin: 0; }
+.ttk-curriculum { padding: 100px 28px 90px; background: #fff; }
+.ttk-topic-list { display: grid; gap: 9px; margin-top: 25px; padding-top: 18px; border-top: 1px solid rgba(0,0,0,.1); }
+.ttk-topic-list span { display: flex; gap: 8px; align-items: center; font-size: 11px; font-weight: 800; }
+.ttk-topic-list svg { color: var(--orange); flex: 0 0 auto; }
+.ttk-includes { padding: 100px 28px; background: #0a0b0c; color: #fff; }
+.ttk-includes-grid { margin-top: 44px; display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
+.ttk-include-card { padding: 25px; min-height: 260px; border: 1px solid rgba(255,255,255,.1); border-radius: 22px; background: rgba(255,255,255,.035); }
+.ttk-include-icon { width: 45px; height: 45px; display: grid; place-items: center; border-radius: 13px; background: rgba(240,75,35,.16); color: #ff8f70; }
+.ttk-include-card h3 { font-family: "Space Grotesk", sans-serif; font-size: 22px; letter-spacing: -.035em; margin: 62px 0 9px; }
+.ttk-include-card p { color: rgba(255,255,255,.55); font-size: 13px; line-height: 1.55; margin: 0; }
+.ttk-access-note { margin-top: 14px; padding: 22px 24px; border-radius: 18px; background: #17191a; display: flex; justify-content: space-between; gap: 25px; align-items: center; }
+.ttk-access-note strong { font-size: 13px; }
+.ttk-access-note p { margin: 6px 0 0; color: rgba(255,255,255,.55); font-size: 12px; line-height: 1.55; max-width: 900px; }
+.ttk-access-note svg { color: #ff8f70; flex: 0 0 auto; }
+.ttk-investment { padding: 90px 28px; background: #fff; }
+.ttk-investment-inner { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 1fr 390px; gap: 50px; align-items: center; }
+.ttk-investment h2 { font-family: "Space Grotesk", sans-serif; font-size: clamp(44px, 5.5vw, 68px); line-height: .96; letter-spacing: -.055em; margin: 12px 0 18px; max-width: 720px; }
+.ttk-investment-inner > div:first-child p { color: var(--muted); font-size: 17px; line-height: 1.55; }
+.ttk-price-box { background: #111; color: #fff; border-radius: 26px; padding: 28px; display: grid; justify-items: start; box-shadow: 0 22px 50px rgba(0,0,0,.12); }
+.ttk-price-box > span { color: #ff9274; font-size: 10px; font-weight: 900; letter-spacing: .15em; }
+.ttk-price-box strong { font-family: "Space Grotesk", sans-serif; font-size: 62px; letter-spacing: -.06em; line-height: 1; margin-top: 9px; }
+.ttk-price-box del { color: rgba(255,255,255,.42); font-size: 16px; margin-top: 5px; }
+.ttk-price-box small { color: rgba(255,255,255,.65); font-size: 11px; margin: 12px 0 20px; }
+.ttk-price-box .ttk-primary-cta { width: 100%; }
+
+@media (max-width: 1000px) {
+  .ttk-learn-grid-wide { grid-template-columns: repeat(2,1fr); }
+  .ttk-outcome-grid { grid-template-columns: repeat(2,1fr); }
+  .ttk-includes-grid { grid-template-columns: repeat(2,1fr); }
+  .ttk-investment-inner { grid-template-columns: 1fr; }
+}
+@media (max-width: 700px) {
+  .ttk-learn-grid-wide, .ttk-outcome-grid, .ttk-includes-grid { grid-template-columns: 1fr; }
+  .ttk-outcomes, .ttk-curriculum, .ttk-includes, .ttk-investment { padding-left: 18px; padding-right: 18px; }
+  .ttk-access-note { align-items: flex-start; }
+  .ttk-price-box strong { font-size: 54px; }
+}
