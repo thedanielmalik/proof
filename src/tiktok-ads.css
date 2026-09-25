@@ -42,6 +42,7 @@
   justify-content: space-between;
 }
 .ttk-brand { display: inline-flex; align-items: center; gap: 11px; }
+.ttk-logo-image { display: block; width: 224px; height: auto; max-height: 72px; object-fit: contain; object-position: left center; border-radius: 2px; }
 .ttk-logo-mark {
   font-family: "Space Grotesk", sans-serif;
   font-weight: 700;
@@ -144,6 +145,10 @@
 }
 .ttk-ad-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--orange); }
 .ttk-ad-time { margin-left: auto; }
+.ttk-video-frame { background: #000; }
+.ttk-ad-video { display: block; width: 100%; height: 100%; object-fit: cover; background: #000; }
+.ttk-ad-video::-webkit-media-controls-panel { background: linear-gradient(transparent, rgba(0,0,0,.8)); }
+
 .ttk-ad-frame {
   aspect-ratio: 9/16;
   border-radius: 17px; overflow: hidden; position: relative;
@@ -271,6 +276,7 @@
 @media (max-width: 560px) {
   .ttk-topbar { font-size: 8px; letter-spacing: .1em; }
   .ttk-brand-copy { display: none; }
+  .ttk-logo-image { width: 165px; max-height: 58px; }
   .ttk-nav-cta { padding: 9px 13px; }
   .ttk-hero-inner { padding: 35px 20px 24px; }
   .ttk-hero h1 { font-size: clamp(48px, 15vw, 66px); }
